@@ -2,7 +2,10 @@
 <html lang="ja">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
     <title>ベルトスクロールアクションメーカー Phase 1</title>
     <link rel="stylesheet" href="style.css" />
   </head>
@@ -28,12 +31,12 @@
       <section class="playfield-wrap">
         <canvas id="gameCanvas" width="960" height="540" aria-label="ゲーム画面"></canvas>
         <div class="touch-help left">左半分ドラッグ: 移動</div>
-        <div class="touch-help right">右半分タップ: 攻撃</div>
+        <div class="touch-help right">右半分: タップ攻撃 / 上スワイプジャンプ</div>
         <div id="message" class="message" aria-live="polite"></div>
       </section>
 
       <footer class="hud hud-bottom">
-        <p>PC操作: WASD / 矢印キーで移動、Space / クリックで攻撃</p>
+        <p>PC操作: WASD / 矢印キーで移動、Space / クリックで攻撃、Shift+左右でジャンプ</p>
         <p>Phase 1: 仮図形、敵タイプ1、HP、スコアのみ</p>
       </footer>
     </main>

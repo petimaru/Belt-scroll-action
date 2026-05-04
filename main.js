@@ -24,6 +24,27 @@ const COMBO_ATTACKS = [
   { label: "3", damage: 28, cooldown: 0.42, width: 92, height: 60, reach: 62, duration: 0.16, hitStop: 0.28, knockback: 88 },
 ];
 
+const JUMP = {
+  duration: 0.58,
+  height: 78,
+  horizontalSpeed: 260,
+  swipeMinDistance: 36,
+  swipeUpThreshold: -30,
+  swipeAngleToleranceDegrees: 60,
+  stickDirectionThreshold: 0.22,
+};
+
+const JUMP_KICK = {
+  damage: 24,
+  cooldown: 0.34,
+  width: 96,
+  height: 66,
+  reach: 64,
+  duration: 0.18,
+  hitStop: 0.24,
+  knockback: 62,
+};
+
 const input = {
   keys: new Set(),
   moveX: 0,
@@ -32,6 +53,10 @@ const input = {
   pointerMoveY: 0,
   movePointerId: null,
   moveStart: null,
+  moveCurrent: null,
+  actionPointerId: null,
+  actionStart: null,
+  actionCurrent: null,
 };
 
 const state = {
@@ -58,6 +83,10 @@ function createPlayer() {
     attackCooldown: 0,
     comboStep: 0,
     comboTimer: 0,
+    isJumping: false,
+    jumpTimer: 0,
+    jumpDirection: 0,
+    jumpKickUsed: false,
   };
 }
 
@@ -175,6 +204,11 @@ function requestAttack() {
   const player = state.player;
   if (player.hp <= 0 || player.attackCooldown > 0) return;
 
+  if (player.isJumping) {
+    requestJumpKick();
+    return;
+  }
+
   if (player.comboTimer <= 0) {
     player.comboStep = 0;
   } else {
@@ -199,6 +233,42 @@ function requestAttack() {
     hasHit: new Set(),
   };
   state.attacks.push(attack);
+}
+
+function requestJump(direction) {
+  const player = state.player;
+  if (player.hp <= 0 || player.isJumping) return;
+
+  player.isJumping = true;
+  player.jumpTimer = JUMP.duration;
+  player.jumpDirection = direction;
+  player.jumpKickUsed = false;
+  player.facing = direction;
+  player.comboTimer = 0;
+  player.comboStep = 0;
+}
+
+function requestJumpKick() {
+  const player = state.player;
+  if (!player.isJumping || player.jumpKickUsed) return;
+
+  player.jumpKickUsed = true;
+  player.attackCooldown = JUMP_KICK.cooldown;
+  state.attacks.push({
+    x: player.x + player.facing * JUMP_KICK.reach,
+    y: player.y - getPlayerJumpHeight(player) * 0.72,
+    width: JUMP_KICK.width,
+    height: JUMP_KICK.height,
+    facing: player.facing,
+    damage: JUMP_KICK.damage,
+    comboStep: "K",
+    knockback: JUMP_KICK.knockback,
+    hitStop: JUMP_KICK.hitStop,
+    age: 0,
+    duration: JUMP_KICK.duration,
+    hasHit: new Set(),
+  });
+  addFloatingText(player.x, player.y - getPlayerJumpHeight(player) - 78, "KICK", "#79d7ff");
 }
 
 function updateInputVector() {
@@ -235,14 +305,30 @@ function updatePlayer(dt) {
   }
 
   updateInputVector();
-  player.x += input.moveX * player.speed * dt;
-  player.y += input.moveY * player.speed * dt;
+  if (player.isJumping) {
+    player.jumpTimer = Math.max(0, player.jumpTimer - dt);
+    player.x += player.jumpDirection * JUMP.horizontalSpeed * dt;
+    if (player.jumpTimer <= 0) {
+      player.isJumping = false;
+      player.jumpDirection = 0;
+      player.jumpKickUsed = false;
+    }
+  } else {
+    player.x += input.moveX * player.speed * dt;
+    player.y += input.moveY * player.speed * dt;
+  }
   player.x = clamp(player.x, 45, WORLD.width - 45);
   player.y = clamp(player.y, WORLD.floorTop + 32, WORLD.floorBottom - 30);
 
-  if (Math.abs(input.moveX) > 0.05) {
+  if (!player.isJumping && Math.abs(input.moveX) > 0.05) {
     player.facing = input.moveX > 0 ? 1 : -1;
   }
+}
+
+function getPlayerJumpHeight(player) {
+  if (!player.isJumping) return 0;
+  const progress = 1 - player.jumpTimer / JUMP.duration;
+  return Math.sin(progress * Math.PI) * JUMP.height;
 }
 
 function updateEnemies(dt) {
@@ -259,6 +345,8 @@ function updateEnemies(dt) {
 
     if (player.hp <= 0) return;
 
+    applyEnemyKnockback(enemy, dt);
+
     if (enemy.hitStopTimer > 0) {
       enemy.attackWindup = 0;
       enemy.attackActive = 0;
@@ -270,8 +358,6 @@ function updateEnemies(dt) {
       updateEnemyEntrance(enemy, dt);
       return;
     }
-
-    applyEnemyKnockback(enemy, dt);
 
     const dx = player.x - enemy.x;
     const dy = player.y - enemy.y;
@@ -315,8 +401,6 @@ function updateEnemies(dt) {
       enemy.x += enemy.wanderX * enemy.speed * 0.48 * dt;
       enemy.y += enemy.wanderY * enemy.speed * 0.48 * dt;
     }
-
-    applyEnemyKnockback(enemy, dt);
   });
 }
 
@@ -362,6 +446,7 @@ function circleIntersectsRect(circle, rect) {
 
 function applyEnemyAttack(enemy, player) {
   if (enemy.hasDamagedThisSwing || player.invincibleTimer > 0) return;
+  if (player.isJumping) return;
   if (!circleIntersectsRect(player, getEnemyAttackBox(enemy))) return;
 
   enemy.hasDamagedThisSwing = true;
@@ -390,17 +475,18 @@ function updateAttacks(dt) {
       if (!isHit) return;
       attack.hasHit.add(enemy);
       enemy.hp -= attack.damage;
-      enemy.hitFlash = attack.comboStep === 3 ? 0.28 : 0.18;
+      const isFinisher = attack.comboStep === 3 || attack.comboStep === "K";
+      enemy.hitFlash = isFinisher ? 0.28 : 0.18;
       enemy.hitStopTimer = attack.hitStop;
       enemy.attackWindup = 0;
       enemy.attackActive = 0;
       enemy.hasDamagedThisSwing = false;
       enemy.knockbackX = attack.facing * attack.knockback * 5.5;
-      enemy.knockbackY = attack.comboStep === 3 ? -40 : 0;
+      enemy.knockbackY = isFinisher ? -40 : 0;
       state.score += 25;
       addFloatingText(enemy.x, enemy.y - 70, `-${attack.damage}`, "#fff1be");
-      if (attack.comboStep === 3) {
-        addFloatingText(enemy.x, enemy.y - 116, "KNOCK!", "#79d7ff");
+      if (isFinisher) {
+        addFloatingText(enemy.x, enemy.y - 116, attack.comboStep === "K" ? "JUMP KICK!" : "KNOCK!", "#79d7ff");
       }
     });
   });
@@ -492,10 +578,11 @@ function drawShadow(entity, scaleX, scaleY) {
 
 function drawPlayer(scaleX, scaleY) {
   const player = state.player;
+  const jumpHeight = getPlayerJumpHeight(player);
   drawShadow(player, scaleX, scaleY);
 
   ctx.save();
-  ctx.translate(player.x * scaleX, player.y * scaleY);
+  ctx.translate(player.x * scaleX, (player.y - jumpHeight) * scaleY);
   ctx.scale(scaleX * player.facing, scaleY);
   ctx.globalAlpha = player.invincibleTimer > 0 ? 0.65 : 1;
 
@@ -512,13 +599,26 @@ function drawPlayer(scaleX, scaleY) {
   ctx.fillStyle = "#12303b";
   ctx.fillRect(6, -48, 6, 5);
 
-  ctx.strokeStyle = "#08222e";
+  ctx.strokeStyle = player.isJumping && player.jumpKickUsed ? "#e9f9ff" : "#08222e";
   ctx.lineWidth = 6;
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(18, -14);
-  ctx.lineTo(34, -12);
+  if (player.isJumping && player.jumpKickUsed) {
+    ctx.moveTo(12, -8);
+    ctx.lineTo(48, -18);
+  } else {
+    ctx.moveTo(18, -14);
+    ctx.lineTo(34, -12);
+  }
   ctx.stroke();
+
+  if (player.isJumping) {
+    ctx.strokeStyle = "rgba(121, 215, 255, 0.72)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 4, 34, 0.2 * Math.PI, 0.82 * Math.PI);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -595,19 +695,20 @@ function drawEnemyAttackBox(enemy, scaleX, scaleY) {
 function drawAttacks(scaleX, scaleY) {
   state.attacks.forEach((attack) => {
     const t = attack.age / attack.duration;
+    const isJumpKick = attack.comboStep === "K";
     ctx.save();
     ctx.translate(attack.x * scaleX, attack.y * scaleY);
     ctx.scale(scaleX, scaleY);
     ctx.globalAlpha = 1 - t;
-    ctx.fillStyle = attack.comboStep === 3 ? "rgba(121, 215, 255, 0.3)" : "rgba(255, 255, 255, 0.34)";
-    ctx.strokeStyle = attack.comboStep === 3 ? "rgba(121, 215, 255, 0.95)" : "rgba(255, 200, 87, 0.92)";
-    ctx.lineWidth = attack.comboStep === 3 ? 6 : 4;
+    ctx.fillStyle = attack.comboStep === 3 || isJumpKick ? "rgba(121, 215, 255, 0.3)" : "rgba(255, 255, 255, 0.34)";
+    ctx.strokeStyle = attack.comboStep === 3 || isJumpKick ? "rgba(121, 215, 255, 0.95)" : "rgba(255, 200, 87, 0.92)";
+    ctx.lineWidth = attack.comboStep === 3 || isJumpKick ? 6 : 4;
     ctx.beginPath();
     ctx.roundRect(-attack.width / 2, -attack.height / 2, attack.width, attack.height, 22);
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = attack.comboStep === 3 ? "#79d7ff" : "#ffc857";
+    ctx.fillStyle = attack.comboStep === 3 || isJumpKick ? "#79d7ff" : "#ffc857";
     ctx.font = "900 18px Trebuchet MS, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(attack.comboStep, 0, -attack.height / 2 - 8);
@@ -682,8 +783,48 @@ function loop(now) {
 
 window.addEventListener("resize", resizeCanvas);
 
+function preventBrowserZoomGestures() {
+  let lastTouchEndTime = 0;
+
+  document.addEventListener(
+    "touchmove",
+    (event) => {
+      if (event.touches.length > 1) event.preventDefault();
+    },
+    { passive: false }
+  );
+
+  document.addEventListener(
+    "touchend",
+    (event) => {
+      const now = Date.now();
+      if (now - lastTouchEndTime < 350) event.preventDefault();
+      lastTouchEndTime = now;
+    },
+    { passive: false }
+  );
+
+  window.addEventListener(
+    "gesturestart",
+    (event) => {
+      event.preventDefault();
+    },
+    { passive: false }
+  );
+}
+
 window.addEventListener("keydown", (event) => {
   input.keys.add(event.code);
+  if ((event.code === "ArrowLeft" || event.code === "KeyA") && event.shiftKey) {
+    event.preventDefault();
+    requestJump(-1);
+    return;
+  }
+  if ((event.code === "ArrowRight" || event.code === "KeyD") && event.shiftKey) {
+    event.preventDefault();
+    requestJump(1);
+    return;
+  }
   if (event.code === "Space") {
     event.preventDefault();
     requestAttack();
@@ -702,30 +843,49 @@ canvas.addEventListener("pointerdown", (event) => {
   if (isLeftHalf && input.movePointerId === null) {
     input.movePointerId = event.pointerId;
     input.moveStart = { x: point.x, y: point.y };
+    input.moveCurrent = { x: point.x, y: point.y };
     input.pointerMoveX = 0;
     input.pointerMoveY = 0;
+  } else if (!isLeftHalf && input.actionPointerId === null) {
+    input.actionPointerId = event.pointerId;
+    input.actionStart = { x: point.x, y: point.y };
+    input.actionCurrent = { x: point.x, y: point.y };
   } else {
     requestAttack();
   }
 });
 
 canvas.addEventListener("pointermove", (event) => {
-  if (event.pointerId !== input.movePointerId || !input.moveStart) return;
   const point = screenToWorld(event);
-  const dx = point.x - input.moveStart.x;
-  const dy = point.y - input.moveStart.y;
-  const dir = normalize(dx, dy);
-  const strength = Math.min(Math.hypot(dx, dy) / 70, 1);
-  input.pointerMoveX = dir.x * strength;
-  input.pointerMoveY = dir.y * strength;
+  if (event.pointerId === input.movePointerId && input.moveStart) {
+    const dx = point.x - input.moveStart.x;
+    const dy = point.y - input.moveStart.y;
+    input.moveCurrent = { x: point.x, y: point.y };
+    const dir = normalize(dx, dy);
+    const strength = Math.min(Math.hypot(dx, dy) / 70, 1);
+    input.pointerMoveX = dir.x * strength;
+    input.pointerMoveY = dir.y * strength;
+  }
+
+  if (event.pointerId === input.actionPointerId && input.actionStart) {
+    input.actionCurrent = { x: point.x, y: point.y };
+  }
 });
 
 canvas.addEventListener("pointerup", (event) => {
   if (event.pointerId === input.movePointerId) {
     input.movePointerId = null;
     input.moveStart = null;
+    input.moveCurrent = null;
     input.pointerMoveX = 0;
     input.pointerMoveY = 0;
+  }
+
+  if (event.pointerId === input.actionPointerId) {
+    if (!maybeTriggerJumpFromActionSwipe()) requestAttack();
+    input.actionPointerId = null;
+    input.actionStart = null;
+    input.actionCurrent = null;
   }
 });
 
@@ -733,13 +893,44 @@ canvas.addEventListener("pointercancel", (event) => {
   if (event.pointerId === input.movePointerId) {
     input.movePointerId = null;
     input.moveStart = null;
+    input.moveCurrent = null;
     input.pointerMoveX = 0;
     input.pointerMoveY = 0;
   }
+
+  if (event.pointerId === input.actionPointerId) {
+    input.actionPointerId = null;
+    input.actionStart = null;
+    input.actionCurrent = null;
+  }
 });
+
+function maybeTriggerJumpFromActionSwipe() {
+  if (!input.actionStart || !input.actionCurrent) return false;
+  const dx = input.actionCurrent.x - input.actionStart.x;
+  const dy = input.actionCurrent.y - input.actionStart.y;
+  const distanceMoved = Math.hypot(dx, dy);
+  const angleFromStraightUp = Math.abs(Math.atan2(dx, -dy) * (180 / Math.PI));
+  const isLooseUpSwipe =
+    distanceMoved >= JUMP.swipeMinDistance &&
+    dy <= JUMP.swipeUpThreshold &&
+    angleFromStraightUp <= JUMP.swipeAngleToleranceDegrees;
+
+  if (!isLooseUpSwipe) return false;
+  requestJump(getJumpDirectionFromMovement());
+  return true;
+}
+
+function getJumpDirectionFromMovement() {
+  if (Math.abs(input.moveX) >= JUMP.stickDirectionThreshold) {
+    return input.moveX > 0 ? 1 : -1;
+  }
+  return state.player.facing;
+}
 
 canvas.addEventListener("contextmenu", (event) => event.preventDefault());
 
 resizeCanvas();
+preventBrowserZoomGestures();
 resetRun(false);
 requestAnimationFrame(loop);
