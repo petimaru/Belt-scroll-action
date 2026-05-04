@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ベルトスクロールアクションメーカー Phase 1</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="game-shell" aria-label="ベルトスクロールアクションゲーム">
+      <header class="hud hud-top">
+        <div class="player-card">
+          <span class="avatar" aria-hidden="true">P</span>
+          <div>
+            <p class="label">Player</p>
+            <div class="meter" aria-label="プレイヤーHP">
+              <span id="hpBar"></span>
+            </div>
+          </div>
+          <strong id="hpText">HP 100/100</strong>
+        </div>
+        <div class="score-card">
+          <span class="label">Score</span>
+          <strong id="scoreText">0</strong>
+        </div>
+      </header>
+
+      <section class="playfield-wrap">
+        <canvas id="gameCanvas" width="960" height="540" aria-label="ゲーム画面"></canvas>
+        <div class="touch-help left">左半分ドラッグ: 移動</div>
+        <div class="touch-help right">右半分タップ: 攻撃</div>
+        <div id="message" class="message" aria-live="polite"></div>
+      </section>
+
+      <footer class="hud hud-bottom">
+        <p>PC操作: WASD / 矢印キーで移動、Space / クリックで攻撃</p>
+        <p>Phase 1: 仮図形、敵タイプ1、HP、スコアのみ</p>
+      </footer>
+    </main>
+
+    <script src="main.js"></script>
+  </body>
+</html>
