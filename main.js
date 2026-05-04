@@ -45,6 +45,15 @@ const JUMP_KICK = {
   knockback: 62,
 };
 
+const BIKE_ENEMY = {
+  warningTime: 1.45,
+  speed: 560,
+  damage: 18,
+  hp: 34,
+  radius: 34,
+  halfVisibleOffset: -38,
+};
+
 const input = {
   keys: new Set(),
   moveX: 0,
@@ -64,6 +73,8 @@ const state = {
   score: 0,
   wave: 1,
   gameOverTimer: 0,
+  bikeSpawnTimer: null,
+  bikeSpawnsRemaining: 0,
   player: createPlayer(),
   enemies: [],
   attacks: [],
@@ -130,6 +141,30 @@ function createEnemy(round = 1, index = 0) {
   };
 }
 
+function createBikeEnemy(round = 1, index = 0) {
+  const fromRight = Math.random() > 0.5;
+  const laneHeight = WORLD.floorBottom - WORLD.floorTop - 120;
+  const y = WORLD.floorTop + 72 + Math.random() * laneHeight;
+  return {
+    type: "bike_rusher",
+    name: "バイク敵",
+    x: fromRight ? WORLD.width - BIKE_ENEMY.halfVisibleOffset : BIKE_ENEMY.halfVisibleOffset,
+    y,
+    radius: BIKE_ENEMY.radius,
+    hp: BIKE_ENEMY.hp + Math.min(round * 3, 18),
+    maxHp: BIKE_ENEMY.hp + Math.min(round * 3, 18),
+    speed: BIKE_ENEMY.speed + Math.min(round * 12, 90),
+    damage: BIKE_ENEMY.damage,
+    facing: fromRight ? -1 : 1,
+    warningTimer: BIKE_ENEMY.warningTime,
+    hasDamagedThisRush: false,
+    hitFlash: 0,
+    hitStopTimer: 0,
+    knockbackX: 0,
+    knockbackY: 0,
+  };
+}
+
 function resetRun(keepScore = false) {
   state.player = createPlayer();
   state.wave = 1;
@@ -141,9 +176,35 @@ function resetRun(keepScore = false) {
   showMessage("Ready?", 800);
 }
 
-function spawnWave() {
+function spawnWave(preserveEventEnemies = false) {
   const enemyCount = state.wave === 1 ? 2 : 2 + Math.floor(Math.random() * 2);
-  state.enemies = Array.from({ length: enemyCount }, (_, index) => createEnemy(state.wave, index));
+  const eventEnemies = preserveEventEnemies ? state.enemies.filter((enemy) => enemy.type === "bike_rusher") : [];
+  const regularEnemies = Array.from({ length: enemyCount }, (_, index) => createEnemy(state.wave, index));
+  state.enemies = [...eventEnemies, ...regularEnemies];
+  scheduleBikeSpawnsForWave();
+}
+
+function scheduleBikeSpawnsForWave() {
+  if (state.wave < 2) {
+    state.bikeSpawnTimer = null;
+    state.bikeSpawnsRemaining = 0;
+    return;
+  }
+
+  state.bikeSpawnsRemaining = state.wave >= 3 && Math.random() < 0.45 ? 2 : 1;
+  state.bikeSpawnTimer = 2 + Math.random() * 3;
+}
+
+function updateBikeSpawner(dt) {
+  if (state.bikeSpawnTimer === null || state.bikeSpawnsRemaining <= 0) return;
+  if (state.player.hp <= 0) return;
+
+  state.bikeSpawnTimer -= dt;
+  if (state.bikeSpawnTimer > 0) return;
+
+  state.enemies.push(createBikeEnemy(state.wave));
+  state.bikeSpawnsRemaining -= 1;
+  state.bikeSpawnTimer = state.bikeSpawnsRemaining > 0 ? 4 + Math.random() * 4 : null;
 }
 
 function showMessage(text, duration = 900) {
@@ -335,6 +396,11 @@ function updateEnemies(dt) {
   const player = state.player;
 
   state.enemies.forEach((enemy) => {
+    if (enemy.type === "bike_rusher") {
+      updateBikeEnemy(enemy, player, dt);
+      return;
+    }
+
     const wasWindingUp = enemy.attackWindup > 0;
     enemy.attackCooldown = Math.max(0, enemy.attackCooldown - dt);
     enemy.attackWindup = Math.max(0, enemy.attackWindup - dt);
@@ -404,13 +470,39 @@ function updateEnemies(dt) {
   });
 }
 
-function applyEnemyKnockback(enemy, dt) {
+function updateBikeEnemy(enemy, player, dt) {
+  enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
+  enemy.hitStopTimer = Math.max(0, enemy.hitStopTimer - dt);
+  applyEnemyKnockback(enemy, dt, false);
+
+  if (enemy.hitStopTimer > 0) return;
+
+  if (enemy.warningTimer > 0) {
+    enemy.warningTimer = Math.max(0, enemy.warningTimer - dt);
+    return;
+  }
+
+  enemy.x += enemy.facing * enemy.speed * dt;
+  if (!player.isJumping && !enemy.hasDamagedThisRush && circleIntersectsRect(player, getBikeHitBox(enemy))) {
+    enemy.hasDamagedThisRush = true;
+    player.hp = Math.max(0, player.hp - enemy.damage);
+    player.invincibleTimer = 0.65;
+    addFloatingText(player.x, player.y - 62, `-${enemy.damage}`, "#ff6b5a");
+    if (player.hp <= 0) showMessage("Retry!", 900);
+  }
+}
+
+function applyEnemyKnockback(enemy, dt, clampToStage = true) {
   enemy.x += enemy.knockbackX * dt;
   enemy.y += enemy.knockbackY * dt;
   enemy.knockbackX *= Math.pow(0.001, dt);
   enemy.knockbackY *= Math.pow(0.001, dt);
-  enemy.x = clamp(enemy.x, 45, WORLD.width - 45);
-  enemy.y = clamp(enemy.y, WORLD.floorTop + 32, WORLD.floorBottom - 30);
+  if (clampToStage) {
+    enemy.x = clamp(enemy.x, 45, WORLD.width - 45);
+    enemy.y = clamp(enemy.y, WORLD.floorTop + 32, WORLD.floorBottom - 30);
+  } else {
+    enemy.y = clamp(enemy.y, WORLD.floorTop + 32, WORLD.floorBottom - 30);
+  }
 }
 
 function updateEnemyEntrance(enemy, dt) {
@@ -435,6 +527,15 @@ function getEnemyAttackBox(enemy) {
     y: enemy.y - 4,
     width: 68,
     height: 52,
+  };
+}
+
+function getBikeHitBox(enemy) {
+  return {
+    x: enemy.x,
+    y: enemy.y - 3,
+    width: 92,
+    height: 54,
   };
 }
 
@@ -497,17 +598,30 @@ function updateAttacks(dt) {
   if (defeatedCount > 0) {
     state.score += defeatedCount * 250;
     state.enemies = state.enemies.filter((enemy) => enemy.hp > 0);
-
-    if (state.enemies.length === 0) {
-      state.wave += 1;
-      spawnWave();
-      showMessage(`Wave ${state.wave}`, 700);
-    }
   }
+
+  state.enemies = state.enemies.filter((enemy) => {
+    if (enemy.type !== "bike_rusher") return true;
+    const hasExitedLeft = enemy.facing < 0 && enemy.x < -130;
+    const hasExitedRight = enemy.facing > 0 && enemy.x > WORLD.width + 130;
+    return enemy.hp > 0 && !hasExitedLeft && !hasExitedRight;
+  });
+
+  maybeAdvanceWave();
+}
+
+function maybeAdvanceWave() {
+  const regularEnemiesRemaining = state.enemies.some((enemy) => enemy.type !== "bike_rusher");
+  if (regularEnemiesRemaining) return;
+
+  state.wave += 1;
+  spawnWave(true);
+  showMessage(`Wave ${state.wave}`, 700);
 }
 
 function update(dt) {
   updatePlayer(dt);
+  updateBikeSpawner(dt);
   updateEnemies(dt);
   updateAttacks(dt);
   updateFloatingTexts(dt);
@@ -624,6 +738,11 @@ function drawPlayer(scaleX, scaleY) {
 
 function drawEnemies(scaleX, scaleY) {
   state.enemies.forEach((enemy) => {
+    if (enemy.type === "bike_rusher") {
+      drawBikeEnemy(enemy, scaleX, scaleY);
+      return;
+    }
+
     drawShadow(enemy, scaleX, scaleY);
     ctx.save();
     ctx.translate(enemy.x * scaleX, enemy.y * scaleY);
@@ -675,6 +794,82 @@ function drawEnemies(scaleX, scaleY) {
       drawEnemyAttackBox(enemy, scaleX, scaleY);
     }
   });
+}
+
+function drawBikeEnemy(enemy, scaleX, scaleY) {
+  drawShadow(enemy, scaleX, scaleY);
+  if (enemy.warningTimer > 0) {
+    drawBikeCaution(enemy, scaleX, scaleY);
+  }
+
+  ctx.save();
+  ctx.translate(enemy.x * scaleX, enemy.y * scaleY);
+  ctx.scale(scaleX * enemy.facing, scaleY);
+
+  ctx.fillStyle = enemy.hitFlash > 0 ? "#fff1be" : "#ff5f4f";
+  ctx.beginPath();
+  ctx.roundRect(-42, -28, 84, 30, 12);
+  ctx.fill();
+
+  ctx.fillStyle = "#1c1c1c";
+  ctx.beginPath();
+  ctx.arc(-28, 8, 14, 0, Math.PI * 2);
+  ctx.arc(30, 8, 14, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#ffc857";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(-28, -4);
+  ctx.lineTo(8, -32);
+  ctx.lineTo(35, -6);
+  ctx.stroke();
+
+  ctx.fillStyle = "#3a1210";
+  ctx.beginPath();
+  ctx.arc(4, -38, 14, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#f6f0df";
+  ctx.lineWidth = 5;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(15, -25);
+  ctx.lineTo(38, -18);
+  ctx.stroke();
+
+  const hpWidth = 72;
+  const hpRatio = Math.max(0, enemy.hp / enemy.maxHp);
+  ctx.fillStyle = "rgba(0, 0, 0, 0.44)";
+  ctx.fillRect(-hpWidth / 2, -58, hpWidth, 7);
+  ctx.fillStyle = "#ffcf5a";
+  ctx.fillRect(-hpWidth / 2, -58, hpWidth * hpRatio, 7);
+
+  ctx.restore();
+}
+
+function drawBikeCaution(enemy, scaleX, scaleY) {
+  const elapsed = BIKE_ENEMY.warningTime - enemy.warningTimer;
+  const blinkProgress = (elapsed / BIKE_ENEMY.warningTime) * 2;
+  const blinkOn = blinkProgress % 1 < 0.62;
+  const frontX = enemy.x + enemy.facing * 78;
+  const textX = clamp(frontX, 96, WORLD.width - 96);
+  const textY = enemy.y - 62;
+
+  ctx.save();
+  ctx.globalAlpha = blinkOn ? 1 : 0.18;
+  ctx.translate(textX * scaleX, textY * scaleY);
+  ctx.scale(scaleX, scaleY);
+  ctx.fillStyle = "#ffc857";
+  ctx.font = "900 22px Trebuchet MS, sans-serif";
+  ctx.textAlign = "center";
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.72)";
+  ctx.strokeText("CAUTION!", 0, 0);
+  ctx.fillText("CAUTION!", 0, 0);
+  ctx.strokeText("CAUTION!", 0, 24);
+  ctx.fillText("CAUTION!", 0, 24);
+  ctx.restore();
 }
 
 function drawEnemyAttackBox(enemy, scaleX, scaleY) {
