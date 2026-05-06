@@ -45,6 +45,13 @@ const JUMP_KICK = {
   knockback: 62,
 };
 
+const PLAYER_KNIFE = {
+  damage: 30,
+  cooldown: 0.34,
+  speed: 430,
+  radius: 10,
+};
+
 const BIKE_ENEMY = {
   warningTime: 1.45,
   speed: 560,
@@ -78,6 +85,7 @@ const ITEM_TYPES = {
   onigiri: { icon: "🍙", heal: 10, label: "+10 HP" },
   cake: { icon: "🍰", heal: 30, label: "+30 HP" },
   meat: { icon: "🍖", heal: 50, label: "+50 HP" },
+  knife: { icon: "🔪", label: "KNIFE" },
 };
 
 const AREA_THEMES = [
@@ -123,6 +131,7 @@ const BREAKABLE_TYPES = {
     width: 50,
     height: 44,
     drops: [
+      { type: "knife", chance: 0.2 },
       { type: "cake", chance: 0.46 },
       { type: "onigiri", chance: 0.18 },
     ],
@@ -134,6 +143,7 @@ const BREAKABLE_TYPES = {
     width: 46,
     height: 62,
     drops: [
+      { type: "knife", chance: 0.24 },
       { type: "meat", chance: 0.32 },
       { type: "cake", chance: 0.26 },
       { type: "onigiri", chance: 0.14 },
@@ -187,6 +197,7 @@ function createPlayer() {
     attackCooldown: 0,
     comboStep: 0,
     comboTimer: 0,
+    hasKnife: false,
     isJumping: false,
     jumpTimer: 0,
     jumpDirection: 0,
@@ -472,6 +483,11 @@ function requestAttack() {
   const player = state.player;
   if (player.hp <= 0 || player.attackCooldown > 0) return;
 
+  if (player.hasKnife) {
+    throwPlayerKnife();
+    return;
+  }
+
   if (player.isJumping) {
     requestJumpKick();
     return;
@@ -501,6 +517,30 @@ function requestAttack() {
     hasHit: new Set(),
   };
   state.attacks.push(attack);
+}
+
+function throwPlayerKnife() {
+  const player = state.player;
+  player.hasKnife = false;
+  player.attackCooldown = PLAYER_KNIFE.cooldown;
+  player.comboTimer = 0;
+  player.comboStep = 0;
+
+  const jumpHeight = getPlayerJumpHeight(player);
+  state.projectiles.push({
+    type: "player_knife",
+    x: player.x + player.facing * 34,
+    y: player.y - jumpHeight * 0.55 - 18,
+    vx: player.facing * PLAYER_KNIFE.speed,
+    vy: 0,
+    radius: PLAYER_KNIFE.radius,
+    damage: PLAYER_KNIFE.damage,
+    age: 0,
+    spin: player.facing > 0 ? 0 : Math.PI,
+    active: true,
+    hasHit: new Set(),
+  });
+  addFloatingText(player.x, player.y - jumpHeight - 70, "KNIFE!", "#79d7ff");
 }
 
 function requestJump(direction) {
@@ -850,6 +890,26 @@ function updateProjectiles(dt) {
       }
     }
 
+    if (projectile.type === "player_knife" && projectile.active) {
+      state.enemies.forEach((enemy) => {
+        if (!projectile.active || projectile.hasHit.has(enemy)) return;
+        if (distance(projectile, enemy) > projectile.radius + enemy.radius * 0.8) return;
+
+        projectile.hasHit.add(enemy);
+        projectile.active = false;
+        enemy.hp -= projectile.damage;
+        enemy.hitFlash = 0.22;
+        enemy.hitStopTimer = 0.18;
+        enemy.attackWindup = 0;
+        enemy.attackActive = 0;
+        enemy.hasDamagedThisSwing = false;
+        enemy.knockbackX = Math.sign(projectile.vx) * 210;
+        enemy.knockbackY = -24;
+        state.score += 30;
+        addFloatingText(enemy.x, enemy.y - 72, `-${projectile.damage}`, "#fff1be");
+      });
+    }
+
     const offscreen =
       projectile.x < -80 ||
       projectile.x > WORLD.width + 80 ||
@@ -897,6 +957,10 @@ function dropItemFromBreakable(breakable) {
   spawnItem(itemType, breakable.x, breakable.y + 6);
 }
 
+function dropKnifeFromProjectile(projectile) {
+  spawnItem("knife", projectile.x, projectile.y + 14);
+}
+
 function spawnItem(itemType, x, y) {
   state.items.push({
     type: itemType,
@@ -919,6 +983,15 @@ function updateItems(dt) {
     if (distance(item, player) > item.radius + player.radius) return;
 
     const itemDef = ITEM_TYPES[item.type];
+    if (item.type === "knife") {
+      if (player.hasKnife) return;
+
+      item.active = false;
+      player.hasKnife = true;
+      addFloatingText(player.x, player.y - 78, "KNIFE GET", "#79d7ff");
+      return;
+    }
+
     const beforeHp = player.hp;
     player.hp = Math.min(player.maxHp, player.hp + itemDef.heal);
     item.active = false;
@@ -1033,6 +1106,7 @@ function updateAttacks(dt) {
 
       if (!isIntercepted) return;
       projectile.active = false;
+      dropKnifeFromProjectile(projectile);
       addFloatingText(projectile.x, projectile.y - 18, "CLANG!", "#79d7ff");
     });
 
@@ -1359,6 +1433,22 @@ function drawPlayer(scaleX, scaleY) {
     ctx.arc(0, 4, 34, 0.2 * Math.PI, 0.82 * Math.PI);
     ctx.stroke();
   }
+
+  if (player.hasKnife) {
+    ctx.fillStyle = "#d8e2ea";
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.58)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(32, -22);
+    ctx.lineTo(54, -27);
+    ctx.lineTo(36, -14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#72513d";
+    ctx.fillRect(25, -22, 10, 7);
+  }
   ctx.restore();
 }
 
@@ -1616,7 +1706,7 @@ function drawProjectiles(scaleX, scaleY) {
       return;
     }
 
-    if (projectile.type !== "enemy_knife") return;
+    if (projectile.type !== "enemy_knife" && projectile.type !== "player_knife") return;
 
     ctx.save();
     ctx.translate(projectile.x * scaleX, projectile.y * scaleY);
