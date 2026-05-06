@@ -80,6 +80,32 @@ const ITEM_TYPES = {
   meat: { icon: "🍖", heal: 50, label: "+50 HP" },
 };
 
+const BREAKABLE_TYPES = {
+  crate: {
+    label: "木箱",
+    hp: 24,
+    radius: 25,
+    width: 50,
+    height: 44,
+    drops: [
+      { type: "cake", chance: 0.46 },
+      { type: "onigiri", chance: 0.18 },
+    ],
+  },
+  barrel: {
+    label: "ドラム缶",
+    hp: 58,
+    radius: 27,
+    width: 46,
+    height: 62,
+    drops: [
+      { type: "meat", chance: 0.32 },
+      { type: "cake", chance: 0.26 },
+      { type: "onigiri", chance: 0.14 },
+    ],
+  },
+};
+
 const input = {
   keys: new Set(),
   moveX: 0,
@@ -97,7 +123,9 @@ const input = {
 const state = {
   lastTime: performance.now(),
   score: 0,
+  area: 1,
   wave: 1,
+  exitGateOpen: false,
   gameOverTimer: 0,
   bikeSpawnTimer: null,
   bikeSpawnsRemaining: 0,
@@ -106,6 +134,7 @@ const state = {
   attacks: [],
   projectiles: [],
   items: [],
+  breakables: [],
   floatingTexts: [],
 };
 
@@ -138,17 +167,18 @@ function createEnemy(round = 1, index = 0) {
     return createKnifeEnemy(round, index);
   }
 
-  const fromRight = Math.random() > 0.5;
-  const dropsIn = Math.random() < 0.25;
+  const fromRight = true;
+  const dropsIn = Math.random() < (round >= 2 ? 0.55 : 0.35);
   const laneHeight = WORLD.floorBottom - WORLD.floorTop - 110;
   const stagger = (index % 3) * 58;
   const baseY = WORLD.floorTop + 58 + ((Math.random() * laneHeight + stagger) % laneHeight);
-  const entryX = fromRight ? WORLD.width - 115 - index * 34 : 115 + index * 34;
+  const dropX = 310 + Math.random() * 330;
+  const entryX = dropsIn ? dropX : fromRight ? WORLD.width - 115 - index * 34 : 115 + index * 34;
   const entryY = baseY;
   return {
     type: "slow_puncher",
     name: "ゆっくり近づく敵",
-    x: dropsIn ? 260 + Math.random() * (WORLD.width - 520) : fromRight ? WORLD.width + 70 + index * 46 : -70 - index * 46,
+    x: dropsIn ? dropX : fromRight ? WORLD.width + 70 + index * 46 : -70 - index * 46,
     y: dropsIn ? WORLD.floorTop - 120 - index * 34 : baseY,
     entryX,
     entryY,
@@ -178,17 +208,19 @@ function createEnemy(round = 1, index = 0) {
 }
 
 function createGunnerEnemy(round = 1, index = 0) {
-  const fromRight = Math.random() > 0.5;
+  const fromRight = true;
+  const dropsIn = round >= 2 && Math.random() < 0.32;
   const laneHeight = WORLD.floorBottom - WORLD.floorTop - 120;
   const y = WORLD.floorTop + 72 + ((Math.random() * laneHeight + index * 42) % laneHeight);
+  const dropX = 420 + Math.random() * 260;
   return {
     type: "gunner",
     name: "銃手",
-    x: fromRight ? WORLD.width + 64 : -64,
-    y,
-    entryX: fromRight ? WORLD.width - 78 : 78,
+    x: dropsIn ? dropX : fromRight ? WORLD.width + 64 : -64,
+    y: dropsIn ? WORLD.floorTop - 110 - index * 28 : y,
+    entryX: dropsIn ? dropX : fromRight ? WORLD.width - 78 : 78,
     entryY: y,
-    entryMode: "side",
+    entryMode: dropsIn ? "drop" : "side",
     entering: true,
     radius: GUNNER_ENEMY.radius,
     hp: GUNNER_ENEMY.hp + Math.min(round * 4, 22),
@@ -207,17 +239,19 @@ function createGunnerEnemy(round = 1, index = 0) {
 }
 
 function createKnifeEnemy(round = 1, index = 0) {
-  const fromRight = Math.random() > 0.5;
+  const fromRight = true;
+  const dropsIn = round >= 2 && Math.random() < 0.36;
   const laneHeight = WORLD.floorBottom - WORLD.floorTop - 120;
   const y = WORLD.floorTop + 72 + ((Math.random() * laneHeight + index * 48) % laneHeight);
+  const dropX = 390 + Math.random() * 300;
   return {
     type: "knife_thrower",
     name: "ナイフ投げ敵",
-    x: fromRight ? WORLD.width + 64 : -64,
-    y,
-    entryX: fromRight ? WORLD.width - 84 : 84,
+    x: dropsIn ? dropX : fromRight ? WORLD.width + 64 : -64,
+    y: dropsIn ? WORLD.floorTop - 110 - index * 28 : y,
+    entryX: dropsIn ? dropX : fromRight ? WORLD.width - 84 : 84,
     entryY: y,
-    entryMode: "side",
+    entryMode: dropsIn ? "drop" : "side",
     entering: true,
     radius: KNIFE_ENEMY.radius,
     hp: KNIFE_ENEMY.hp + Math.min(round * 4, 24),
@@ -259,25 +293,65 @@ function createBikeEnemy(round = 1, index = 0) {
   };
 }
 
+function createBreakable(type, x, y) {
+  const breakableDef = BREAKABLE_TYPES[type];
+  return {
+    type,
+    label: breakableDef.label,
+    x,
+    y,
+    radius: breakableDef.radius,
+    width: breakableDef.width,
+    height: breakableDef.height,
+    hp: breakableDef.hp,
+    maxHp: breakableDef.hp,
+    hitFlash: 0,
+    wobbleTimer: 0,
+    active: true,
+  };
+}
+
 function resetRun(keepScore = false) {
   state.player = createPlayer();
+  state.area = 1;
   state.wave = 1;
-  spawnWave();
+  state.exitGateOpen = false;
   state.attacks = [];
   state.projectiles = [];
   state.items = [];
+  state.breakables = [];
   state.floatingTexts = [];
+  spawnWave();
   state.gameOverTimer = 0;
   if (!keepScore) state.score = 0;
   showMessage("Ready?", 800);
 }
 
 function spawnWave(preserveEventEnemies = false) {
+  state.exitGateOpen = false;
   const enemyCount = state.wave === 1 ? 2 : 2 + Math.floor(Math.random() * 2);
   const eventEnemies = preserveEventEnemies ? state.enemies.filter((enemy) => enemy.type === "bike_rusher") : [];
   const regularEnemies = Array.from({ length: enemyCount }, (_, index) => createEnemy(state.wave, index));
   state.enemies = [...eventEnemies, ...regularEnemies];
+  state.breakables = createBreakablesForWave(state.wave);
   scheduleBikeSpawnsForWave();
+}
+
+function createBreakablesForWave(round) {
+  const centerY = WORLD.floorTop + 92 + Math.random() * (WORLD.floorBottom - WORLD.floorTop - 170);
+  const breakables = [
+    createBreakable("crate", 410 + Math.random() * 90, centerY),
+  ];
+
+  if (round >= 2) {
+    breakables.push(createBreakable("barrel", 650 + Math.random() * 95, WORLD.floorTop + 120 + Math.random() * 180));
+  }
+
+  if (round >= 3 && Math.random() < 0.55) {
+    breakables.push(createBreakable("crate", 545 + Math.random() * 120, WORLD.floorTop + 90 + Math.random() * 210));
+  }
+
+  return breakables;
 }
 
 function scheduleBikeSpawnsForWave() {
@@ -480,6 +554,14 @@ function updatePlayer(dt) {
   if (!player.isJumping && Math.abs(input.moveX) > 0.05) {
     player.facing = input.moveX > 0 ? 1 : -1;
   }
+}
+
+function updateAreaProgression() {
+  const player = state.player;
+  if (!state.exitGateOpen || player.hp <= 0) return;
+  if (player.x < WORLD.width - 58) return;
+
+  enterNextArea();
 }
 
 function getPlayerJumpHeight(player) {
@@ -753,10 +835,36 @@ function dropItemFromEnemy(enemy) {
   const itemType = getDropTypeForEnemy(enemy);
   if (!itemType) return;
 
+  spawnItem(itemType, enemy.x, enemy.y + 8);
+}
+
+function getDropTypeForBreakable(breakable) {
+  const breakableDef = BREAKABLE_TYPES[breakable.type];
+  if (!breakableDef) return null;
+
+  let roll = Math.random();
+  for (const drop of breakableDef.drops) {
+    if (roll < drop.chance) return drop.type;
+    roll -= drop.chance;
+  }
+  return null;
+}
+
+function dropItemFromBreakable(breakable) {
+  const itemType = getDropTypeForBreakable(breakable);
+  if (!itemType) {
+    addFloatingText(breakable.x, breakable.y - 46, "EMPTY", "#b5aa90");
+    return;
+  }
+
+  spawnItem(itemType, breakable.x, breakable.y + 6);
+}
+
+function spawnItem(itemType, x, y) {
   state.items.push({
     type: itemType,
-    x: enemy.x,
-    y: clamp(enemy.y + 8, WORLD.floorTop + 30, WORLD.floorBottom - 24),
+    x,
+    y: clamp(y, WORLD.floorTop + 30, WORLD.floorBottom - 24),
     radius: 18,
     age: 0,
     bobSeed: Math.random() * Math.PI * 2,
@@ -785,6 +893,13 @@ function updateItems(dt) {
   state.items = state.items.filter((item) => item.active);
 }
 
+function updateBreakables(dt) {
+  state.breakables.forEach((breakable) => {
+    breakable.hitFlash = Math.max(0, breakable.hitFlash - dt);
+    breakable.wobbleTimer = Math.max(0, breakable.wobbleTimer - dt);
+  });
+}
+
 function applyEnemyKnockback(enemy, dt, clampToStage = true) {
   enemy.x += enemy.knockbackX * dt;
   enemy.y += enemy.knockbackY * dt;
@@ -800,8 +915,21 @@ function applyEnemyKnockback(enemy, dt, clampToStage = true) {
 
 function updateEnemyEntrance(enemy, dt) {
   const target = { x: enemy.entryX, y: enemy.entryY };
+  if (enemy.entryMode === "drop") {
+    enemy.x = target.x;
+    enemy.y += 235 * dt;
+    enemy.facing = state.player.x > enemy.x ? 1 : -1;
+
+    if (enemy.y >= target.y) {
+      enemy.y = target.y;
+      enemy.entering = false;
+      enemy.attackCooldown = 0.85 + Math.random() * 0.75;
+    }
+    return;
+  }
+
   const toTarget = normalize(target.x - enemy.x, target.y - enemy.y);
-  const entrySpeed = enemy.entryMode === "drop" ? 235 : 135;
+  const entrySpeed = 135;
   enemy.x += toTarget.x * entrySpeed * dt;
   enemy.y += toTarget.y * entrySpeed * dt;
   enemy.facing = target.x - enemy.x > 0 ? 1 : -1;
@@ -871,6 +999,23 @@ function updateAttacks(dt) {
       addFloatingText(projectile.x, projectile.y - 18, "CLANG!", "#79d7ff");
     });
 
+    state.breakables.forEach((breakable) => {
+      if (!breakable.active || attack.hasHit.has(breakable)) return;
+      const isHit =
+        breakable.x + breakable.width / 2 > hitLeft &&
+        breakable.x - breakable.width / 2 < hitRight &&
+        breakable.y + breakable.height / 2 > hitTop &&
+        breakable.y - breakable.height / 2 < hitBottom;
+
+      if (!isHit) return;
+      attack.hasHit.add(breakable);
+      breakable.hp -= attack.damage;
+      breakable.hitFlash = 0.16;
+      breakable.wobbleTimer = 0.18;
+      state.score += 10;
+      addFloatingText(breakable.x, breakable.y - breakable.height / 2 - 20, `-${attack.damage}`, "#fff1be");
+    });
+
     state.enemies.forEach((enemy) => {
       if (attack.hasHit.has(enemy)) return;
       const isHit =
@@ -907,6 +1052,16 @@ function updateAttacks(dt) {
     state.enemies = state.enemies.filter((enemy) => enemy.hp > 0);
   }
 
+  const brokenBreakables = state.breakables.filter((breakable) => breakable.hp <= 0);
+  if (brokenBreakables.length > 0) {
+    state.score += brokenBreakables.length * 80;
+    brokenBreakables.forEach((breakable) => {
+      addFloatingText(breakable.x, breakable.y - breakable.height / 2 - 38, "BREAK!", "#ffc857");
+      dropItemFromBreakable(breakable);
+    });
+    state.breakables = state.breakables.filter((breakable) => breakable.hp > 0);
+  }
+
   state.enemies = state.enemies.filter((enemy) => {
     if (enemy.type !== "bike_rusher") return true;
     const hasExitedLeft = enemy.facing < 0 && enemy.x < -130;
@@ -921,9 +1076,28 @@ function maybeAdvanceWave() {
   const regularEnemiesRemaining = state.enemies.some((enemy) => enemy.type !== "bike_rusher");
   if (regularEnemiesRemaining) return;
 
-  state.wave += 1;
-  spawnWave(true);
-  showMessage(`Wave ${state.wave}`, 700);
+  if (state.exitGateOpen) return;
+  state.exitGateOpen = true;
+  state.bikeSpawnTimer = null;
+  state.bikeSpawnsRemaining = 0;
+  showMessage("GO RIGHT!", 850);
+}
+
+function enterNextArea() {
+  state.area += 1;
+  state.wave = state.area;
+  state.player.x = 92;
+  state.player.y = clamp(state.player.y, WORLD.floorTop + 44, WORLD.floorBottom - 42);
+  state.player.facing = 1;
+  state.player.comboStep = 0;
+  state.player.comboTimer = 0;
+  state.player.attackCooldown = 0;
+  state.attacks = [];
+  state.projectiles = [];
+  state.items = [];
+  state.enemies = [];
+  spawnWave(false);
+  showMessage(`Area ${state.area}`, 760);
 }
 
 function update(dt) {
@@ -932,6 +1106,8 @@ function update(dt) {
   updateEnemies(dt);
   updateProjectiles(dt);
   updateAttacks(dt);
+  updateAreaProgression();
+  updateBreakables(dt);
   updateItems(dt);
   updateFloatingTexts(dt);
   updateHud();
@@ -987,6 +1163,50 @@ function drawBackground() {
   ctx.lineTo(WORLD.width, WORLD.floorTop);
   ctx.moveTo(0, WORLD.floorBottom);
   ctx.lineTo(WORLD.width, WORLD.floorBottom);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawExitGate(scaleX, scaleY) {
+  if (!state.exitGateOpen) return;
+
+  const pulse = 0.58 + Math.sin(performance.now() / 130) * 0.22;
+  const gateX = WORLD.width - 42;
+  const gateTop = WORLD.floorTop + 18;
+  const gateHeight = WORLD.floorBottom - WORLD.floorTop - 36;
+
+  ctx.save();
+  ctx.translate(gateX * scaleX, gateTop * scaleY);
+  ctx.scale(scaleX, scaleY);
+
+  ctx.fillStyle = `rgba(121, 215, 255, ${0.16 + pulse * 0.14})`;
+  ctx.fillRect(-18, 0, 36, gateHeight);
+
+  ctx.strokeStyle = `rgba(121, 215, 255, ${0.5 + pulse * 0.38})`;
+  ctx.lineWidth = 4;
+  ctx.setLineDash([14, 10]);
+  ctx.strokeRect(-18, 0, 36, gateHeight);
+
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#79d7ff";
+  ctx.font = "900 26px Trebuchet MS, sans-serif";
+  ctx.textAlign = "center";
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.72)";
+  ctx.strokeText("GO!", -58, gateHeight / 2 - 16);
+  ctx.fillText("GO!", -58, gateHeight / 2 - 16);
+
+  ctx.beginPath();
+  ctx.moveTo(-58, gateHeight / 2 + 10);
+  ctx.lineTo(-22, gateHeight / 2 + 10);
+  ctx.lineTo(-35, gateHeight / 2 - 2);
+  ctx.moveTo(-22, gateHeight / 2 + 10);
+  ctx.lineTo(-35, gateHeight / 2 + 22);
+  ctx.strokeStyle = "#79d7ff";
+  ctx.lineWidth = 6;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
   ctx.stroke();
 
   ctx.restore();
@@ -1323,6 +1543,89 @@ function drawProjectiles(scaleX, scaleY) {
   });
 }
 
+function drawBreakables(scaleX, scaleY) {
+  state.breakables.forEach((breakable) => {
+    if (breakable.type === "barrel") {
+      drawBarrel(breakable, scaleX, scaleY);
+      return;
+    }
+
+    drawCrate(breakable, scaleX, scaleY);
+  });
+}
+
+function drawCrate(crate, scaleX, scaleY) {
+  drawShadow(crate, scaleX, scaleY);
+  const wobble = crate.wobbleTimer > 0 ? Math.sin(crate.wobbleTimer * 70) * 2.5 : 0;
+
+  ctx.save();
+  ctx.translate(crate.x * scaleX, crate.y * scaleY);
+  ctx.rotate((wobble * Math.PI) / 180);
+  ctx.scale(scaleX, scaleY);
+
+  ctx.fillStyle = crate.hitFlash > 0 ? "#fff1be" : "#9f6b38";
+  ctx.strokeStyle = "#4c2f18";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.roundRect(-crate.width / 2, -crate.height / 2, crate.width, crate.height, 5);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = "rgba(255, 232, 180, 0.48)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-crate.width / 2 + 7, -crate.height / 2 + 7);
+  ctx.lineTo(crate.width / 2 - 7, crate.height / 2 - 7);
+  ctx.moveTo(crate.width / 2 - 7, -crate.height / 2 + 7);
+  ctx.lineTo(-crate.width / 2 + 7, crate.height / 2 - 7);
+  ctx.stroke();
+
+  drawBreakableHpBar(crate);
+  ctx.restore();
+}
+
+function drawBarrel(barrel, scaleX, scaleY) {
+  drawShadow(barrel, scaleX, scaleY);
+  const wobble = barrel.wobbleTimer > 0 ? Math.sin(barrel.wobbleTimer * 70) * 2 : 0;
+
+  ctx.save();
+  ctx.translate(barrel.x * scaleX, barrel.y * scaleY);
+  ctx.rotate((wobble * Math.PI) / 180);
+  ctx.scale(scaleX, scaleY);
+
+  ctx.fillStyle = barrel.hitFlash > 0 ? "#fff1be" : "#5c8a83";
+  ctx.strokeStyle = "#203f3c";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.roundRect(-barrel.width / 2, -barrel.height / 2, barrel.width, barrel.height, 12);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = "rgba(233, 249, 255, 0.5)";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(-barrel.width / 2 + 3, -18);
+  ctx.lineTo(barrel.width / 2 - 3, -18);
+  ctx.moveTo(-barrel.width / 2 + 3, 16);
+  ctx.lineTo(barrel.width / 2 - 3, 16);
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+  ctx.fillRect(-barrel.width / 2 + 8, -barrel.height / 2 + 8, 7, barrel.height - 16);
+
+  drawBreakableHpBar(barrel);
+  ctx.restore();
+}
+
+function drawBreakableHpBar(breakable) {
+  const hpRatio = Math.max(0, breakable.hp / breakable.maxHp);
+  const hpWidth = breakable.width + 8;
+  ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+  ctx.fillRect(-hpWidth / 2, -breakable.height / 2 - 13, hpWidth, 6);
+  ctx.fillStyle = "#ffc857";
+  ctx.fillRect(-hpWidth / 2, -breakable.height / 2 - 13, hpWidth * hpRatio, 6);
+}
+
 function drawItems(scaleX, scaleY) {
   state.items.forEach((item) => {
     const itemDef = ITEM_TYPES[item.type];
@@ -1461,8 +1764,10 @@ function render() {
   const scaleY = viewH / WORLD.height;
 
   drawBackground();
+  drawExitGate(scaleX, scaleY);
   drawAttacks(scaleX, scaleY);
   drawProjectiles(scaleX, scaleY);
+  drawBreakables(scaleX, scaleY);
   drawItems(scaleX, scaleY);
   drawEnemies(scaleX, scaleY);
   drawPlayer(scaleX, scaleY);
@@ -1532,12 +1837,53 @@ window.addEventListener("keyup", (event) => {
   input.keys.delete(event.code);
 });
 
+function clearMovePointerInput() {
+  input.movePointerId = null;
+  input.moveStart = null;
+  input.moveCurrent = null;
+  input.pointerMoveX = 0;
+  input.pointerMoveY = 0;
+}
+
+function clearActionPointerInput() {
+  input.actionPointerId = null;
+  input.actionStart = null;
+  input.actionCurrent = null;
+}
+
+function clearPointerInput() {
+  clearMovePointerInput();
+  clearActionPointerInput();
+}
+
+function clearAllInput() {
+  input.keys.clear();
+  clearPointerInput();
+}
+
+function safelySetPointerCapture(pointerId) {
+  try {
+    canvas.setPointerCapture(pointerId);
+  } catch {
+    clearPointerInput();
+  }
+}
+
+function safelyReleasePointerCapture(pointerId) {
+  try {
+    if (canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
+  } catch {
+    clearPointerInput();
+  }
+}
+
 canvas.addEventListener("pointerdown", (event) => {
-  canvas.setPointerCapture(event.pointerId);
+  safelySetPointerCapture(event.pointerId);
   const point = screenToWorld(event);
   const isLeftHalf = point.screenX < point.screenWidth / 2;
 
-  if (isLeftHalf && input.movePointerId === null) {
+  if (isLeftHalf) {
+    clearMovePointerInput();
     input.movePointerId = event.pointerId;
     input.moveStart = { x: point.x, y: point.y };
     input.moveCurrent = { x: point.x, y: point.y };
@@ -1570,37 +1916,60 @@ canvas.addEventListener("pointermove", (event) => {
 });
 
 canvas.addEventListener("pointerup", (event) => {
+  safelyReleasePointerCapture(event.pointerId);
+
   if (event.pointerId === input.movePointerId) {
-    input.movePointerId = null;
-    input.moveStart = null;
-    input.moveCurrent = null;
-    input.pointerMoveX = 0;
-    input.pointerMoveY = 0;
+    clearMovePointerInput();
   }
 
   if (event.pointerId === input.actionPointerId) {
     if (!maybeTriggerJumpFromActionSwipe()) requestAttack();
-    input.actionPointerId = null;
-    input.actionStart = null;
-    input.actionCurrent = null;
+    clearActionPointerInput();
   }
 });
 
 canvas.addEventListener("pointercancel", (event) => {
+  safelyReleasePointerCapture(event.pointerId);
+
   if (event.pointerId === input.movePointerId) {
-    input.movePointerId = null;
-    input.moveStart = null;
-    input.moveCurrent = null;
-    input.pointerMoveX = 0;
-    input.pointerMoveY = 0;
+    clearMovePointerInput();
   }
 
   if (event.pointerId === input.actionPointerId) {
-    input.actionPointerId = null;
-    input.actionStart = null;
-    input.actionCurrent = null;
+    clearActionPointerInput();
   }
 });
+
+canvas.addEventListener("lostpointercapture", (event) => {
+  if (event.pointerId === input.movePointerId) clearMovePointerInput();
+  if (event.pointerId === input.actionPointerId) clearActionPointerInput();
+});
+
+window.addEventListener("pointerup", (event) => {
+  if (event.pointerId === input.movePointerId) clearMovePointerInput();
+  if (event.pointerId === input.actionPointerId) clearActionPointerInput();
+});
+
+window.addEventListener("pointercancel", (event) => {
+  if (event.pointerId === input.movePointerId) clearMovePointerInput();
+  if (event.pointerId === input.actionPointerId) clearActionPointerInput();
+});
+
+window.addEventListener("blur", clearAllInput);
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) clearAllInput();
+});
+
+document.addEventListener(
+  "touchend",
+  (event) => {
+    if (event.touches.length === 0) clearPointerInput();
+  },
+  { passive: true }
+);
+
+document.addEventListener("touchcancel", clearPointerInput, { passive: true });
 
 function maybeTriggerJumpFromActionSwipe() {
   if (!input.actionStart || !input.actionCurrent) return false;
