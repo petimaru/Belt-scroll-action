@@ -2,6 +2,7 @@ const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const hpBar = document.getElementById("hpBar");
 const hpText = document.getElementById("hpText");
+const lifeText = document.getElementById("lifeText");
 const scoreText = document.getElementById("scoreText");
 const message = document.getElementById("message");
 
@@ -17,6 +18,9 @@ const DIFFICULTY = {
   enemyAttackWindup: 0.46,
   enemyAttackActive: 0.16,
 };
+
+const INITIAL_LIVES = 3;
+const MAX_LIVES = 5;
 
 const COMBO_ATTACKS = [
   { label: "1", damage: 14, cooldown: 0.22, width: 72, height: 50, reach: 48, duration: 0.11, hitStop: 0.18, knockback: 12 },
@@ -86,6 +90,7 @@ const ITEM_TYPES = {
   cake: { icon: "🍰", heal: 30, label: "+30 HP" },
   meat: { icon: "🍖", heal: 50, label: "+50 HP" },
   knife: { icon: "🔪", label: "KNIFE" },
+  heart: { icon: "❤️", label: "LIFE +1" },
 };
 
 const AREA_THEMES = [
@@ -131,6 +136,7 @@ const BREAKABLE_TYPES = {
     width: 50,
     height: 44,
     drops: [
+      { type: "heart", chance: 0.08 },
       { type: "knife", chance: 0.2 },
       { type: "cake", chance: 0.46 },
       { type: "onigiri", chance: 0.18 },
@@ -143,6 +149,7 @@ const BREAKABLE_TYPES = {
     width: 46,
     height: 62,
     drops: [
+      { type: "heart", chance: 0.12 },
       { type: "knife", chance: 0.24 },
       { type: "meat", chance: 0.32 },
       { type: "cake", chance: 0.26 },
@@ -173,6 +180,7 @@ const state = {
   exitGateOpen: false,
   areaTransitionTimer: 0,
   gameOverTimer: 0,
+  lives: INITIAL_LIVES,
   bikeSpawnTimer: null,
   bikeSpawnsRemaining: 0,
   player: createPlayer(),
@@ -371,6 +379,7 @@ function resetRun(keepScore = false) {
   state.floatingTexts = [];
   spawnWave();
   state.gameOverTimer = 0;
+  state.lives = INITIAL_LIVES;
   if (!keepScore) state.score = 0;
   showMessage("Ready?", 800);
 }
@@ -445,6 +454,10 @@ function addFloatingText(x, y, text, color = "#f6f0df") {
     lift: 34 + Math.random() * 10,
     drift: (Math.random() - 0.5) * 18,
   });
+}
+
+function showPlayerDefeatMessage() {
+  showMessage(state.lives <= 1 ? "Retry!" : "Down!", 800);
 }
 
 function resizeCanvas() {
@@ -608,7 +621,7 @@ function updatePlayer(dt) {
 
   if (player.hp <= 0) {
     state.gameOverTimer += dt;
-    if (state.gameOverTimer > 1.15) resetRun(false);
+    if (state.gameOverTimer > 0.85) handlePlayerDefeat();
     return;
   }
 
@@ -631,6 +644,37 @@ function updatePlayer(dt) {
   if (!player.isJumping && Math.abs(input.moveX) > 0.05) {
     player.facing = input.moveX > 0 ? 1 : -1;
   }
+}
+
+function handlePlayerDefeat() {
+  if (state.lives <= 1) {
+    resetRun(false);
+    return;
+  }
+
+  state.lives -= 1;
+  revivePlayer();
+}
+
+function revivePlayer() {
+  const player = state.player;
+  player.x = 92;
+  player.y = clamp(player.y, WORLD.floorTop + 44, WORLD.floorBottom - 42);
+  player.hp = player.maxHp;
+  player.facing = 1;
+  player.invincibleTimer = 3;
+  player.attackCooldown = 0;
+  player.comboStep = 0;
+  player.comboTimer = 0;
+  player.hasKnife = false;
+  player.isJumping = false;
+  player.jumpTimer = 0;
+  player.jumpDirection = 0;
+  player.jumpKickUsed = false;
+  state.attacks = [];
+  state.projectiles = [];
+  state.gameOverTimer = 0;
+  showMessage(`Life ${state.lives}`, 700);
 }
 
 function updateAreaProgression() {
@@ -867,7 +911,7 @@ function updateBikeEnemy(enemy, player, dt) {
     player.hp = Math.max(0, player.hp - enemy.damage);
     player.invincibleTimer = 0.65;
     addFloatingText(player.x, player.y - 62, `-${enemy.damage}`, "#ff6b5a");
-    if (player.hp <= 0) showMessage("Retry!", 900);
+    if (player.hp <= 0) showPlayerDefeatMessage();
   }
 }
 
@@ -886,7 +930,7 @@ function updateProjectiles(dt) {
         player.hp = Math.max(0, player.hp - projectile.damage);
         player.invincibleTimer = 0.55;
         addFloatingText(player.x, player.y - 62, `-${projectile.damage}`, "#ff6b5a");
-        if (player.hp <= 0) showMessage("Retry!", 900);
+        if (player.hp <= 0) showPlayerDefeatMessage();
       }
     }
 
@@ -992,6 +1036,15 @@ function updateItems(dt) {
       return;
     }
 
+    if (item.type === "heart") {
+      if (state.lives >= MAX_LIVES) return;
+
+      item.active = false;
+      state.lives += 1;
+      addFloatingText(player.x, player.y - 78, "LIFE +1", "#ff7cab");
+      return;
+    }
+
     const beforeHp = player.hp;
     player.hp = Math.min(player.maxHp, player.hp + itemDef.heal);
     item.active = false;
@@ -1085,7 +1138,7 @@ function applyEnemyAttack(enemy, player) {
   player.hp = Math.max(0, player.hp - enemy.damage);
   player.invincibleTimer = 0.55;
   addFloatingText(player.x, player.y - 62, `-${enemy.damage}`, "#ff6b5a");
-  if (player.hp <= 0) showMessage("Retry!", 900);
+  if (player.hp <= 0) showPlayerDefeatMessage();
 }
 
 function updateAttacks(dt) {
@@ -1239,6 +1292,7 @@ function updateHud() {
       ? "linear-gradient(90deg, var(--hp-danger), #ffb14a)"
       : "linear-gradient(90deg, var(--hp), #d7ff77)";
   hpText.textContent = `HP ${state.player.hp}/${state.player.maxHp}`;
+  lifeText.textContent = `LIFE ${state.lives}`;
   scoreText.textContent = String(state.score);
 }
 
