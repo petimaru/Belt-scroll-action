@@ -80,6 +80,41 @@ const ITEM_TYPES = {
   meat: { icon: "🍖", heal: 50, label: "+50 HP" },
 };
 
+const AREA_THEMES = [
+  {
+    sky: "#263024",
+    floor: "#4a3f26",
+    edge: "#1a211c",
+    topShade: "rgba(0, 0, 0, 0.24)",
+    lane: "rgba(255, 232, 180, 0.09)",
+    border: "rgba(255, 232, 180, 0.18)",
+  },
+  {
+    sky: "#223035",
+    floor: "#35482f",
+    edge: "#151f25",
+    topShade: "rgba(0, 0, 0, 0.28)",
+    lane: "rgba(184, 229, 214, 0.1)",
+    border: "rgba(184, 229, 214, 0.2)",
+  },
+  {
+    sky: "#342a25",
+    floor: "#51422a",
+    edge: "#1f1715",
+    topShade: "rgba(0, 0, 0, 0.3)",
+    lane: "rgba(255, 205, 142, 0.11)",
+    border: "rgba(255, 205, 142, 0.22)",
+  },
+  {
+    sky: "#26243a",
+    floor: "#33404f",
+    edge: "#161824",
+    topShade: "rgba(0, 0, 0, 0.32)",
+    lane: "rgba(190, 210, 255, 0.1)",
+    border: "rgba(190, 210, 255, 0.2)",
+  },
+];
+
 const BREAKABLE_TYPES = {
   crate: {
     label: "木箱",
@@ -126,6 +161,7 @@ const state = {
   area: 1,
   wave: 1,
   exitGateOpen: false,
+  areaTransitionTimer: 0,
   gameOverTimer: 0,
   bikeSpawnTimer: null,
   bikeSpawnsRemaining: 0,
@@ -316,6 +352,7 @@ function resetRun(keepScore = false) {
   state.area = 1;
   state.wave = 1;
   state.exitGateOpen = false;
+  state.areaTransitionTimer = 0;
   state.attacks = [];
   state.projectiles = [];
   state.items = [];
@@ -1080,12 +1117,12 @@ function maybeAdvanceWave() {
   state.exitGateOpen = true;
   state.bikeSpawnTimer = null;
   state.bikeSpawnsRemaining = 0;
-  showMessage("GO RIGHT!", 850);
 }
 
 function enterNextArea() {
   state.area += 1;
   state.wave = state.area;
+  state.areaTransitionTimer = 0.58;
   state.player.x = 92;
   state.player.y = clamp(state.player.y, WORLD.floorTop + 44, WORLD.floorBottom - 42);
   state.player.facing = 1;
@@ -1097,10 +1134,10 @@ function enterNextArea() {
   state.items = [];
   state.enemies = [];
   spawnWave(false);
-  showMessage(`Area ${state.area}`, 760);
 }
 
 function update(dt) {
+  state.areaTransitionTimer = Math.max(0, state.areaTransitionTimer - dt);
   updatePlayer(dt);
   updateBikeSpawner(dt);
   updateEnemies(dt);
@@ -1131,32 +1168,37 @@ function updateHud() {
   scoreText.textContent = String(state.score);
 }
 
+function getAreaTheme() {
+  return AREA_THEMES[(state.area - 1) % AREA_THEMES.length];
+}
+
 function drawBackground() {
   const viewW = canvas.clientWidth;
   const viewH = canvas.clientHeight;
   const scaleX = viewW / WORLD.width;
   const scaleY = viewH / WORLD.height;
+  const theme = getAreaTheme();
 
   ctx.save();
   ctx.scale(scaleX, scaleY);
   ctx.clearRect(0, 0, WORLD.width, WORLD.height);
 
   const gradient = ctx.createLinearGradient(0, 0, WORLD.width, WORLD.height);
-  gradient.addColorStop(0, "#263024");
-  gradient.addColorStop(0.52, "#4a3f26");
-  gradient.addColorStop(1, "#1a211c");
+  gradient.addColorStop(0, theme.sky);
+  gradient.addColorStop(0.52, theme.floor);
+  gradient.addColorStop(1, theme.edge);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, WORLD.width, WORLD.height);
 
-  ctx.fillStyle = "rgba(0, 0, 0, 0.24)";
+  ctx.fillStyle = theme.topShade;
   ctx.fillRect(0, 0, WORLD.width, WORLD.floorTop);
 
-  ctx.fillStyle = "rgba(255, 232, 180, 0.09)";
+  ctx.fillStyle = theme.lane;
   for (let y = WORLD.floorTop; y <= WORLD.floorBottom; y += 38) {
     ctx.fillRect(0, y, WORLD.width, 2);
   }
 
-  ctx.strokeStyle = "rgba(255, 232, 180, 0.18)";
+  ctx.strokeStyle = theme.border;
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(0, WORLD.floorTop);
@@ -1172,6 +1214,8 @@ function drawExitGate(scaleX, scaleY) {
   if (!state.exitGateOpen) return;
 
   const pulse = 0.58 + Math.sin(performance.now() / 130) * 0.22;
+  const blink = performance.now() % 760 < 430;
+  const textAlpha = blink ? 1 : 0.22;
   const gateX = WORLD.width - 42;
   const gateTop = WORLD.floorTop + 18;
   const gateHeight = WORLD.floorBottom - WORLD.floorTop - 36;
@@ -1189,6 +1233,7 @@ function drawExitGate(scaleX, scaleY) {
   ctx.strokeRect(-18, 0, 36, gateHeight);
 
   ctx.setLineDash([]);
+  ctx.globalAlpha = textAlpha;
   ctx.fillStyle = "#79d7ff";
   ctx.font = "900 26px Trebuchet MS, sans-serif";
   ctx.textAlign = "center";
@@ -1207,6 +1252,58 @@ function drawExitGate(scaleX, scaleY) {
   ctx.lineWidth = 6;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+function drawAreaBadge(scaleX, scaleY) {
+  ctx.save();
+  ctx.translate(26 * scaleX, 24 * scaleY);
+  ctx.scale(scaleX, scaleY);
+
+  ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+  ctx.strokeStyle = getAreaTheme().border;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(0, 0, 116, 34, 10);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(246, 240, 223, 0.72)";
+  ctx.font = "900 12px Trebuchet MS, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("AREA", 14, 15);
+
+  ctx.fillStyle = "#ffc857";
+  ctx.font = "900 20px Trebuchet MS, sans-serif";
+  ctx.fillText(String(state.area), 62, 23);
+
+  ctx.restore();
+}
+
+function drawAreaTransition(scaleX, scaleY) {
+  if (state.areaTransitionTimer <= 0) return;
+
+  const progress = 1 - state.areaTransitionTimer / 0.58;
+  const fade = Math.sin(progress * Math.PI);
+  const sweepX = WORLD.width * progress;
+
+  ctx.save();
+  ctx.scale(scaleX, scaleY);
+
+  ctx.fillStyle = `rgba(0, 0, 0, ${0.18 * fade})`;
+  ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+
+  ctx.fillStyle = `rgba(121, 215, 255, ${0.14 * fade})`;
+  ctx.fillRect(sweepX - 180, 0, 180, WORLD.height);
+
+  ctx.strokeStyle = `rgba(121, 215, 255, ${0.55 * fade})`;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(sweepX, WORLD.floorTop);
+  ctx.lineTo(sweepX, WORLD.floorBottom);
   ctx.stroke();
 
   ctx.restore();
@@ -1765,6 +1862,7 @@ function render() {
 
   drawBackground();
   drawExitGate(scaleX, scaleY);
+  drawAreaBadge(scaleX, scaleY);
   drawAttacks(scaleX, scaleY);
   drawProjectiles(scaleX, scaleY);
   drawBreakables(scaleX, scaleY);
@@ -1773,6 +1871,7 @@ function render() {
   drawPlayer(scaleX, scaleY);
   drawFloatingTexts(scaleX, scaleY);
   drawJoystick(scaleX, scaleY);
+  drawAreaTransition(scaleX, scaleY);
 }
 
 function loop(now) {
