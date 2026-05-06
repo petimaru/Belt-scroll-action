@@ -54,6 +54,32 @@ const BIKE_ENEMY = {
   halfVisibleOffset: -38,
 };
 
+const KNIFE_ENEMY = {
+  hp: 42,
+  radius: 24,
+  throwCooldownMin: 1.75,
+  throwCooldownMax: 2.45,
+  throwWindup: 0.48,
+  knifeSpeed: 310,
+  knifeDamage: 12,
+};
+
+const GUNNER_ENEMY = {
+  hp: 38,
+  radius: 24,
+  shotCooldownMin: 2.1,
+  shotCooldownMax: 3.0,
+  shotWindup: 0.62,
+  bulletSpeed: 360,
+  bulletDamage: 16,
+};
+
+const ITEM_TYPES = {
+  onigiri: { icon: "🍙", heal: 10, label: "+10 HP" },
+  cake: { icon: "🍰", heal: 30, label: "+30 HP" },
+  meat: { icon: "🍖", heal: 50, label: "+50 HP" },
+};
+
 const input = {
   keys: new Set(),
   moveX: 0,
@@ -78,6 +104,8 @@ const state = {
   player: createPlayer(),
   enemies: [],
   attacks: [],
+  projectiles: [],
+  items: [],
   floatingTexts: [],
 };
 
@@ -102,6 +130,14 @@ function createPlayer() {
 }
 
 function createEnemy(round = 1, index = 0) {
+  if (round >= 3 && index === 2 && Math.random() < 0.68) {
+    return createGunnerEnemy(round, index);
+  }
+
+  if (round >= 2 && index === 1 && Math.random() < 0.72) {
+    return createKnifeEnemy(round, index);
+  }
+
   const fromRight = Math.random() > 0.5;
   const dropsIn = Math.random() < 0.25;
   const laneHeight = WORLD.floorBottom - WORLD.floorTop - 110;
@@ -141,6 +177,64 @@ function createEnemy(round = 1, index = 0) {
   };
 }
 
+function createGunnerEnemy(round = 1, index = 0) {
+  const fromRight = Math.random() > 0.5;
+  const laneHeight = WORLD.floorBottom - WORLD.floorTop - 120;
+  const y = WORLD.floorTop + 72 + ((Math.random() * laneHeight + index * 42) % laneHeight);
+  return {
+    type: "gunner",
+    name: "銃手",
+    x: fromRight ? WORLD.width + 64 : -64,
+    y,
+    entryX: fromRight ? WORLD.width - 78 : 78,
+    entryY: y,
+    entryMode: "side",
+    entering: true,
+    radius: GUNNER_ENEMY.radius,
+    hp: GUNNER_ENEMY.hp + Math.min(round * 4, 22),
+    maxHp: GUNNER_ENEMY.hp + Math.min(round * 4, 22),
+    speed: 78,
+    damage: GUNNER_ENEMY.bulletDamage,
+    facing: fromRight ? -1 : 1,
+    shotCooldown: 1.35 + Math.random() * 0.9,
+    shotWindup: 0,
+    hasQueuedShot: false,
+    hitFlash: 0,
+    hitStopTimer: 0,
+    knockbackX: 0,
+    knockbackY: 0,
+  };
+}
+
+function createKnifeEnemy(round = 1, index = 0) {
+  const fromRight = Math.random() > 0.5;
+  const laneHeight = WORLD.floorBottom - WORLD.floorTop - 120;
+  const y = WORLD.floorTop + 72 + ((Math.random() * laneHeight + index * 48) % laneHeight);
+  return {
+    type: "knife_thrower",
+    name: "ナイフ投げ敵",
+    x: fromRight ? WORLD.width + 64 : -64,
+    y,
+    entryX: fromRight ? WORLD.width - 84 : 84,
+    entryY: y,
+    entryMode: "side",
+    entering: true,
+    radius: KNIFE_ENEMY.radius,
+    hp: KNIFE_ENEMY.hp + Math.min(round * 4, 24),
+    maxHp: KNIFE_ENEMY.hp + Math.min(round * 4, 24),
+    speed: 86,
+    damage: KNIFE_ENEMY.knifeDamage,
+    facing: fromRight ? -1 : 1,
+    throwCooldown: 1.2 + Math.random() * 0.7,
+    throwWindup: 0,
+    hasQueuedKnife: false,
+    hitFlash: 0,
+    hitStopTimer: 0,
+    knockbackX: 0,
+    knockbackY: 0,
+  };
+}
+
 function createBikeEnemy(round = 1, index = 0) {
   const fromRight = Math.random() > 0.5;
   const laneHeight = WORLD.floorBottom - WORLD.floorTop - 120;
@@ -170,6 +264,8 @@ function resetRun(keepScore = false) {
   state.wave = 1;
   spawnWave();
   state.attacks = [];
+  state.projectiles = [];
+  state.items = [];
   state.floatingTexts = [];
   state.gameOverTimer = 0;
   if (!keepScore) state.score = 0;
@@ -401,6 +497,16 @@ function updateEnemies(dt) {
       return;
     }
 
+    if (enemy.type === "knife_thrower") {
+      updateKnifeEnemy(enemy, player, dt);
+      return;
+    }
+
+    if (enemy.type === "gunner") {
+      updateGunnerEnemy(enemy, player, dt);
+      return;
+    }
+
     const wasWindingUp = enemy.attackWindup > 0;
     enemy.attackCooldown = Math.max(0, enemy.attackCooldown - dt);
     enemy.attackWindup = Math.max(0, enemy.attackWindup - dt);
@@ -470,6 +576,120 @@ function updateEnemies(dt) {
   });
 }
 
+function updateGunnerEnemy(enemy, player, dt) {
+  const wasWindingUp = enemy.shotWindup > 0;
+  enemy.shotCooldown = Math.max(0, enemy.shotCooldown - dt);
+  enemy.shotWindup = Math.max(0, enemy.shotWindup - dt);
+  enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
+  enemy.hitStopTimer = Math.max(0, enemy.hitStopTimer - dt);
+
+  if (player.hp <= 0) return;
+
+  applyEnemyKnockback(enemy, dt);
+
+  if (enemy.hitStopTimer > 0) {
+    enemy.shotWindup = 0;
+    enemy.hasQueuedShot = false;
+    return;
+  }
+
+  if (enemy.entering) {
+    updateEnemyEntrance(enemy, dt);
+    return;
+  }
+
+  const dx = player.x - enemy.x;
+  if (Math.abs(dx) > 4) enemy.facing = dx > 0 ? 1 : -1;
+
+  if (wasWindingUp && enemy.shotWindup <= 0 && enemy.hasQueuedShot) {
+    fireEnemyBullet(enemy, player);
+    enemy.hasQueuedShot = false;
+    enemy.shotCooldown = GUNNER_ENEMY.shotCooldownMin + Math.random() * (GUNNER_ENEMY.shotCooldownMax - GUNNER_ENEMY.shotCooldownMin);
+    return;
+  }
+
+  if (enemy.shotWindup > 0) return;
+
+  if (enemy.shotCooldown <= 0) {
+    enemy.shotWindup = GUNNER_ENEMY.shotWindup;
+    enemy.hasQueuedShot = true;
+  }
+}
+
+function fireEnemyBullet(enemy, player) {
+  const targetY = clamp(player.y - getPlayerJumpHeight(player) * 0.38, WORLD.floorTop + 24, WORLD.floorBottom - 12);
+  const direction = normalize(enemy.facing, (targetY - enemy.y) / 260);
+  state.projectiles.push({
+    type: "enemy_bullet",
+    x: enemy.x + enemy.facing * 42,
+    y: enemy.y - 22,
+    vx: direction.x * GUNNER_ENEMY.bulletSpeed,
+    vy: direction.y * GUNNER_ENEMY.bulletSpeed,
+    radius: 7,
+    damage: GUNNER_ENEMY.bulletDamage,
+    age: 0,
+    spin: 0,
+    active: true,
+  });
+}
+
+function updateKnifeEnemy(enemy, player, dt) {
+  const wasWindingUp = enemy.throwWindup > 0;
+  enemy.throwCooldown = Math.max(0, enemy.throwCooldown - dt);
+  enemy.throwWindup = Math.max(0, enemy.throwWindup - dt);
+  enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
+  enemy.hitStopTimer = Math.max(0, enemy.hitStopTimer - dt);
+
+  if (player.hp <= 0) return;
+
+  applyEnemyKnockback(enemy, dt);
+
+  if (enemy.hitStopTimer > 0) {
+    enemy.throwWindup = 0;
+    enemy.hasQueuedKnife = false;
+    return;
+  }
+
+  if (enemy.entering) {
+    updateEnemyEntrance(enemy, dt);
+    return;
+  }
+
+  const dx = player.x - enemy.x;
+  if (Math.abs(dx) > 4) enemy.facing = dx > 0 ? 1 : -1;
+
+  if (wasWindingUp && enemy.throwWindup <= 0 && enemy.hasQueuedKnife) {
+    throwEnemyKnife(enemy, player);
+    enemy.hasQueuedKnife = false;
+    enemy.throwCooldown = KNIFE_ENEMY.throwCooldownMin + Math.random() * (KNIFE_ENEMY.throwCooldownMax - KNIFE_ENEMY.throwCooldownMin);
+    return;
+  }
+
+  if (enemy.throwWindup > 0) return;
+
+  if (enemy.throwCooldown <= 0) {
+    enemy.throwWindup = KNIFE_ENEMY.throwWindup;
+    enemy.hasQueuedKnife = true;
+  }
+}
+
+function throwEnemyKnife(enemy, player) {
+  const targetY = clamp(player.y - getPlayerJumpHeight(player) * 0.45, WORLD.floorTop + 24, WORLD.floorBottom - 12);
+  const direction = normalize(enemy.facing, (targetY - enemy.y) / 220);
+  state.projectiles.push({
+    type: "enemy_knife",
+    x: enemy.x + enemy.facing * 38,
+    y: enemy.y - 16,
+    vx: direction.x * KNIFE_ENEMY.knifeSpeed,
+    vy: direction.y * KNIFE_ENEMY.knifeSpeed,
+    radius: 10,
+    damage: KNIFE_ENEMY.knifeDamage,
+    age: 0,
+    spin: 0,
+    active: true,
+  });
+}
+
 function updateBikeEnemy(enemy, player, dt) {
   enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
   enemy.hitStopTimer = Math.max(0, enemy.hitStopTimer - dt);
@@ -490,6 +710,79 @@ function updateBikeEnemy(enemy, player, dt) {
     addFloatingText(player.x, player.y - 62, `-${enemy.damage}`, "#ff6b5a");
     if (player.hp <= 0) showMessage("Retry!", 900);
   }
+}
+
+function updateProjectiles(dt) {
+  const player = state.player;
+
+  state.projectiles.forEach((projectile) => {
+    projectile.age += dt;
+    projectile.spin += dt * 16;
+    projectile.x += projectile.vx * dt;
+    projectile.y += projectile.vy * dt;
+
+    if ((projectile.type === "enemy_knife" || projectile.type === "enemy_bullet") && projectile.active && !player.isJumping && player.invincibleTimer <= 0) {
+      if (distance(projectile, player) <= projectile.radius + player.radius * 0.75) {
+        projectile.active = false;
+        player.hp = Math.max(0, player.hp - projectile.damage);
+        player.invincibleTimer = 0.55;
+        addFloatingText(player.x, player.y - 62, `-${projectile.damage}`, "#ff6b5a");
+        if (player.hp <= 0) showMessage("Retry!", 900);
+      }
+    }
+
+    const offscreen =
+      projectile.x < -80 ||
+      projectile.x > WORLD.width + 80 ||
+      projectile.y < WORLD.floorTop - 90 ||
+      projectile.y > WORLD.floorBottom + 90;
+    if (offscreen) projectile.active = false;
+  });
+
+  state.projectiles = state.projectiles.filter((projectile) => projectile.active);
+}
+
+function getDropTypeForEnemy(enemy) {
+  if (enemy.type === "slow_puncher" || enemy.type === "knife_thrower" || enemy.type === "gunner") {
+    return Math.random() < 0.45 ? "onigiri" : null;
+  }
+  return null;
+}
+
+function dropItemFromEnemy(enemy) {
+  const itemType = getDropTypeForEnemy(enemy);
+  if (!itemType) return;
+
+  state.items.push({
+    type: itemType,
+    x: enemy.x,
+    y: clamp(enemy.y + 8, WORLD.floorTop + 30, WORLD.floorBottom - 24),
+    radius: 18,
+    age: 0,
+    bobSeed: Math.random() * Math.PI * 2,
+    active: true,
+  });
+}
+
+function updateItems(dt) {
+  const player = state.player;
+
+  state.items.forEach((item) => {
+    item.age += dt;
+    if (!item.active || player.hp <= 0) return;
+
+    if (distance(item, player) > item.radius + player.radius) return;
+
+    const itemDef = ITEM_TYPES[item.type];
+    const beforeHp = player.hp;
+    player.hp = Math.min(player.maxHp, player.hp + itemDef.heal);
+    item.active = false;
+
+    const healed = player.hp - beforeHp;
+    addFloatingText(player.x, player.y - 78, healed > 0 ? `+${healed} HP` : "FULL", "#77df74");
+  });
+
+  state.items = state.items.filter((item) => item.active);
 }
 
 function applyEnemyKnockback(enemy, dt, clampToStage = true) {
@@ -560,13 +853,26 @@ function applyEnemyAttack(enemy, player) {
 function updateAttacks(dt) {
   state.attacks.forEach((attack) => {
     attack.age += dt;
+    const hitLeft = attack.x - attack.width / 2;
+    const hitRight = attack.x + attack.width / 2;
+    const hitTop = attack.y - attack.height / 2;
+    const hitBottom = attack.y + attack.height / 2;
+
+    state.projectiles.forEach((projectile) => {
+      if (!projectile.active || projectile.type !== "enemy_knife") return;
+      const isIntercepted =
+        projectile.x + projectile.radius > hitLeft &&
+        projectile.x - projectile.radius < hitRight &&
+        projectile.y + projectile.radius > hitTop &&
+        projectile.y - projectile.radius < hitBottom;
+
+      if (!isIntercepted) return;
+      projectile.active = false;
+      addFloatingText(projectile.x, projectile.y - 18, "CLANG!", "#79d7ff");
+    });
 
     state.enemies.forEach((enemy) => {
       if (attack.hasHit.has(enemy)) return;
-      const hitLeft = attack.x - attack.width / 2;
-      const hitRight = attack.x + attack.width / 2;
-      const hitTop = attack.y - attack.height / 2;
-      const hitBottom = attack.y + attack.height / 2;
       const isHit =
         enemy.x + enemy.radius > hitLeft &&
         enemy.x - enemy.radius < hitRight &&
@@ -597,6 +903,7 @@ function updateAttacks(dt) {
   const defeatedCount = state.enemies.filter((enemy) => enemy.hp <= 0).length;
   if (defeatedCount > 0) {
     state.score += defeatedCount * 250;
+    state.enemies.filter((enemy) => enemy.hp <= 0).forEach(dropItemFromEnemy);
     state.enemies = state.enemies.filter((enemy) => enemy.hp > 0);
   }
 
@@ -623,7 +930,9 @@ function update(dt) {
   updatePlayer(dt);
   updateBikeSpawner(dt);
   updateEnemies(dt);
+  updateProjectiles(dt);
   updateAttacks(dt);
+  updateItems(dt);
   updateFloatingTexts(dt);
   updateHud();
 }
@@ -743,6 +1052,16 @@ function drawEnemies(scaleX, scaleY) {
       return;
     }
 
+    if (enemy.type === "knife_thrower") {
+      drawKnifeEnemy(enemy, scaleX, scaleY);
+      return;
+    }
+
+    if (enemy.type === "gunner") {
+      drawGunnerEnemy(enemy, scaleX, scaleY);
+      return;
+    }
+
     drawShadow(enemy, scaleX, scaleY);
     ctx.save();
     ctx.translate(enemy.x * scaleX, enemy.y * scaleY);
@@ -794,6 +1113,107 @@ function drawEnemies(scaleX, scaleY) {
       drawEnemyAttackBox(enemy, scaleX, scaleY);
     }
   });
+}
+
+function drawGunnerEnemy(enemy, scaleX, scaleY) {
+  drawShadow(enemy, scaleX, scaleY);
+  ctx.save();
+  ctx.translate(enemy.x * scaleX, enemy.y * scaleY);
+  ctx.scale(scaleX * enemy.facing, scaleY);
+
+  ctx.fillStyle = enemy.hitFlash > 0 ? "#fff1be" : "#7b8ea8";
+  ctx.beginPath();
+  ctx.roundRect(-22, -32, 44, 56, 12);
+  ctx.fill();
+
+  ctx.fillStyle = "#151a24";
+  ctx.beginPath();
+  ctx.arc(0, -42, 16, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#f6f0df";
+  ctx.fillRect(4, -45, 5, 4);
+  ctx.fillRect(-8, -45, 5, 4);
+
+  ctx.strokeStyle = enemy.shotWindup > 0 ? "#ffc857" : "#222831";
+  ctx.lineWidth = enemy.shotWindup > 0 ? 7 : 5;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(14, -18);
+  ctx.lineTo(54, -20);
+  ctx.stroke();
+
+  ctx.fillStyle = "#0d1117";
+  ctx.fillRect(48, -24, 18, 8);
+
+  if (enemy.shotWindup > 0) {
+    ctx.fillStyle = "rgba(255, 200, 87, 0.9)";
+    ctx.font = "900 16px Trebuchet MS, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("SHOT", 0, -70);
+  }
+
+  const hpWidth = 58;
+  const hpRatio = Math.max(0, enemy.hp / enemy.maxHp);
+  ctx.fillStyle = "rgba(0, 0, 0, 0.44)";
+  ctx.fillRect(-hpWidth / 2, -58, hpWidth, 7);
+  ctx.fillStyle = "#ffcf5a";
+  ctx.fillRect(-hpWidth / 2, -58, hpWidth * hpRatio, 7);
+
+  ctx.restore();
+}
+
+function drawKnifeEnemy(enemy, scaleX, scaleY) {
+  drawShadow(enemy, scaleX, scaleY);
+  ctx.save();
+  ctx.translate(enemy.x * scaleX, enemy.y * scaleY);
+  ctx.scale(scaleX * enemy.facing, scaleY);
+
+  ctx.fillStyle = enemy.hitFlash > 0 ? "#fff1be" : "#d98a4a";
+  ctx.beginPath();
+  ctx.roundRect(-22, -32, 44, 56, 12);
+  ctx.fill();
+
+  ctx.fillStyle = "#23120f";
+  ctx.beginPath();
+  ctx.arc(0, -42, 16, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#f6f0df";
+  ctx.fillRect(4, -45, 5, 4);
+  ctx.fillRect(-8, -45, 5, 4);
+
+  ctx.strokeStyle = enemy.throwWindup > 0 ? "#e9f9ff" : "#5a261c";
+  ctx.lineWidth = enemy.throwWindup > 0 ? 6 : 4;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(16, -16);
+  ctx.lineTo(42, -28);
+  ctx.stroke();
+
+  ctx.fillStyle = "#cbd6df";
+  ctx.beginPath();
+  ctx.moveTo(45, -31);
+  ctx.lineTo(61, -26);
+  ctx.lineTo(46, -21);
+  ctx.closePath();
+  ctx.fill();
+
+  if (enemy.throwWindup > 0) {
+    ctx.fillStyle = "rgba(121, 215, 255, 0.82)";
+    ctx.font = "900 16px Trebuchet MS, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("THROW", 0, -70);
+  }
+
+  const hpWidth = 58;
+  const hpRatio = Math.max(0, enemy.hp / enemy.maxHp);
+  ctx.fillStyle = "rgba(0, 0, 0, 0.44)";
+  ctx.fillRect(-hpWidth / 2, -58, hpWidth, 7);
+  ctx.fillStyle = "#ffcf5a";
+  ctx.fillRect(-hpWidth / 2, -58, hpWidth * hpRatio, 7);
+
+  ctx.restore();
 }
 
 function drawBikeEnemy(enemy, scaleX, scaleY) {
@@ -869,6 +1289,86 @@ function drawBikeCaution(enemy, scaleX, scaleY) {
   ctx.fillText("CAUTION!", 0, 0);
   ctx.strokeText("CAUTION!", 0, 24);
   ctx.fillText("CAUTION!", 0, 24);
+  ctx.restore();
+}
+
+function drawProjectiles(scaleX, scaleY) {
+  state.projectiles.forEach((projectile) => {
+    if (projectile.type === "enemy_bullet") {
+      drawEnemyBullet(projectile, scaleX, scaleY);
+      return;
+    }
+
+    if (projectile.type !== "enemy_knife") return;
+
+    ctx.save();
+    ctx.translate(projectile.x * scaleX, projectile.y * scaleY);
+    ctx.rotate(projectile.spin);
+    ctx.scale(scaleX, scaleY);
+    ctx.fillStyle = "#d8e2ea";
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.62)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(18, 0);
+    ctx.lineTo(-8, -7);
+    ctx.lineTo(-14, 0);
+    ctx.lineTo(-8, 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#72513d";
+    ctx.fillRect(-20, -4, 12, 8);
+    ctx.restore();
+  });
+}
+
+function drawItems(scaleX, scaleY) {
+  state.items.forEach((item) => {
+    const itemDef = ITEM_TYPES[item.type];
+    const bob = Math.sin(item.age * 5 + item.bobSeed) * 5;
+
+    ctx.save();
+    ctx.translate(item.x * scaleX, (item.y + bob) * scaleY);
+    ctx.scale(scaleX, scaleY);
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.24)";
+    ctx.beginPath();
+    ctx.ellipse(0, 21, 18, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.16)";
+    ctx.beginPath();
+    ctx.arc(0, 0, 24, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.font = "28px Apple Color Emoji, Segoe UI Emoji, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(itemDef.icon, 0, 0);
+
+    ctx.restore();
+  });
+}
+
+function drawEnemyBullet(projectile, scaleX, scaleY) {
+  ctx.save();
+  ctx.translate(projectile.x * scaleX, projectile.y * scaleY);
+  ctx.scale(scaleX, scaleY);
+  ctx.fillStyle = "#ffdf6b";
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.65)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, projectile.radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = "rgba(255, 223, 107, 0.42)";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(-Math.sign(projectile.vx) * 20, 0);
+  ctx.lineTo(0, 0);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -962,6 +1462,8 @@ function render() {
 
   drawBackground();
   drawAttacks(scaleX, scaleY);
+  drawProjectiles(scaleX, scaleY);
+  drawItems(scaleX, scaleY);
   drawEnemies(scaleX, scaleY);
   drawPlayer(scaleX, scaleY);
   drawFloatingTexts(scaleX, scaleY);
