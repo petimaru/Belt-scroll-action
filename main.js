@@ -3,8 +3,15 @@ const ctx = canvas.getContext("2d");
 const hpBar = document.getElementById("hpBar");
 const hpText = document.getElementById("hpText");
 const lifeText = document.getElementById("lifeText");
+const specialButton = document.getElementById("specialButton");
+const specialBar = document.getElementById("specialBar");
+const specialText = document.getElementById("specialText");
 const scoreText = document.getElementById("scoreText");
 const message = document.getElementById("message");
+const continueOverlay = document.getElementById("continueOverlay");
+const continueCount = document.getElementById("continueCount");
+const continueButton = document.getElementById("continueButton");
+const giveUpButton = document.getElementById("giveUpButton");
 
 const WORLD = {
   width: 960,
@@ -21,6 +28,17 @@ const DIFFICULTY = {
 
 const INITIAL_LIVES = 3;
 const MAX_LIVES = 5;
+const CONTINUE_COUNTDOWN = 10;
+
+const SPECIAL_GAUGE = {
+  max: 100,
+  skillCost: 10,
+  skillDamage: 34,
+  skillRadius: 118,
+  skillCooldown: 0.36,
+  skillHoldTime: 0.45,
+  superDamage: 90,
+};
 
 const COMBO_ATTACKS = [
   { label: "1", damage: 14, cooldown: 0.22, width: 72, height: 50, reach: 48, duration: 0.11, hitStop: 0.18, knockback: 12 },
@@ -170,6 +188,8 @@ const input = {
   actionPointerId: null,
   actionStart: null,
   actionCurrent: null,
+  actionHoldTimer: 0,
+  actionHoldTriggered: false,
 };
 
 const state = {
@@ -180,6 +200,9 @@ const state = {
   exitGateOpen: false,
   areaTransitionTimer: 0,
   gameOverTimer: 0,
+  continueActive: false,
+  continueTimer: 0,
+  superFlashTimer: 0,
   lives: INITIAL_LIVES,
   bikeSpawnTimer: null,
   bikeSpawnsRemaining: 0,
@@ -206,6 +229,7 @@ function createPlayer() {
     comboStep: 0,
     comboTimer: 0,
     hasKnife: false,
+    specialGauge: 0,
     isJumping: false,
     jumpTimer: 0,
     jumpDirection: 0,
@@ -372,6 +396,9 @@ function resetRun(keepScore = false) {
   state.wave = 1;
   state.exitGateOpen = false;
   state.areaTransitionTimer = 0;
+  state.superFlashTimer = 0;
+  state.continueActive = false;
+  state.continueTimer = 0;
   state.attacks = [];
   state.projectiles = [];
   state.items = [];
@@ -381,6 +408,7 @@ function resetRun(keepScore = false) {
   state.gameOverTimer = 0;
   state.lives = INITIAL_LIVES;
   if (!keepScore) state.score = 0;
+  updateContinueOverlay();
   showMessage("Ready?", 800);
 }
 
@@ -454,6 +482,15 @@ function addFloatingText(x, y, text, color = "#f6f0df") {
     lift: 34 + Math.random() * 10,
     drift: (Math.random() - 0.5) * 18,
   });
+}
+
+function addSpecialGauge(amount) {
+  const player = state.player;
+  player.specialGauge = clamp(player.specialGauge + amount, 0, SPECIAL_GAUGE.max);
+}
+
+function canUsePlayerAction() {
+  return !state.continueActive && state.player.hp > 0;
 }
 
 function showPlayerDefeatMessage() {
@@ -556,6 +593,51 @@ function throwPlayerKnife() {
   addFloatingText(player.x, player.y - jumpHeight - 70, "KNIFE!", "#79d7ff");
 }
 
+function requestSpecialSkill() {
+  const player = state.player;
+  if (!canUsePlayerAction() || player.attackCooldown > 0 || player.specialGauge < SPECIAL_GAUGE.skillCost) return false;
+
+  player.specialGauge -= SPECIAL_GAUGE.skillCost;
+  player.attackCooldown = SPECIAL_GAUGE.skillCooldown;
+  player.comboStep = 0;
+  player.comboTimer = 0;
+  state.attacks.push({
+    type: "special",
+    x: player.x,
+    y: player.y,
+    radius: SPECIAL_GAUGE.skillRadius,
+    damage: SPECIAL_GAUGE.skillDamage,
+    knockback: 74,
+    hitStop: 0.22,
+    age: 0,
+    duration: 0.26,
+    hasHit: new Set(),
+  });
+  addFloatingText(player.x, player.y - 92, "SPECIAL!", "#79d7ff");
+  return true;
+}
+
+function requestSuperSpecial() {
+  const player = state.player;
+  if (!canUsePlayerAction() || player.specialGauge < SPECIAL_GAUGE.max) return false;
+
+  player.specialGauge = 0;
+  player.attackCooldown = Math.max(player.attackCooldown, 0.55);
+  state.superFlashTimer = 0.42;
+  state.enemies.forEach((enemy) => {
+    damageEnemy(enemy, SPECIAL_GAUGE.superDamage, {
+      knockbackX: enemy.x < player.x ? -520 : 520,
+      knockbackY: -90,
+      hitStop: 0.36,
+      flash: 0.36,
+      score: 70,
+    });
+    addFloatingText(enemy.x, enemy.y - 92, `-${SPECIAL_GAUGE.superDamage}`, "#fff1be");
+  });
+  addFloatingText(player.x, player.y - 108, "SUPER!", "#ffc857");
+  return true;
+}
+
 function requestJump(direction) {
   const player = state.player;
   if (player.hp <= 0 || player.isJumping) return;
@@ -648,7 +730,7 @@ function updatePlayer(dt) {
 
 function handlePlayerDefeat() {
   if (state.lives <= 1) {
-    resetRun(false);
+    startContinueCountdown();
     return;
   }
 
@@ -675,6 +757,61 @@ function revivePlayer() {
   state.projectiles = [];
   state.gameOverTimer = 0;
   showMessage(`Life ${state.lives}`, 700);
+}
+
+function startContinueCountdown() {
+  state.continueActive = true;
+  state.continueTimer = CONTINUE_COUNTDOWN;
+  state.superFlashTimer = 0;
+  state.attacks = [];
+  state.projectiles = [];
+  clearAllInput();
+  updateContinueOverlay();
+}
+
+function updateContinue(dt) {
+  if (!state.continueActive) return;
+
+  state.continueTimer = Math.max(0, state.continueTimer - dt);
+  updateContinueOverlay();
+  if (state.continueTimer <= 0) giveUpContinue();
+}
+
+function acceptContinue() {
+  if (!state.continueActive) return;
+
+  state.continueActive = false;
+  state.continueTimer = 0;
+  state.lives = INITIAL_LIVES;
+  state.wave = state.area;
+  state.exitGateOpen = false;
+  state.areaTransitionTimer = 0.58;
+  state.superFlashTimer = 0;
+  state.gameOverTimer = 0;
+  state.attacks = [];
+  state.projectiles = [];
+  state.items = [];
+  state.enemies = [];
+  state.breakables = [];
+  spawnWave(false);
+  revivePlayer();
+  updateContinueOverlay();
+}
+
+function giveUpContinue() {
+  if (!state.continueActive) return;
+
+  state.continueActive = false;
+  state.continueTimer = 0;
+  updateContinueOverlay();
+  resetRun(false);
+}
+
+function updateContinueOverlay() {
+  continueOverlay.hidden = !state.continueActive;
+  if (!state.continueActive) return;
+
+  continueCount.textContent = String(Math.ceil(state.continueTimer));
 }
 
 function updateAreaProgression() {
@@ -909,6 +1046,7 @@ function updateBikeEnemy(enemy, player, dt) {
   if (!player.isJumping && !enemy.hasDamagedThisRush && circleIntersectsRect(player, getBikeHitBox(enemy))) {
     enemy.hasDamagedThisRush = true;
     player.hp = Math.max(0, player.hp - enemy.damage);
+    addSpecialGauge(10);
     player.invincibleTimer = 0.65;
     addFloatingText(player.x, player.y - 62, `-${enemy.damage}`, "#ff6b5a");
     if (player.hp <= 0) showPlayerDefeatMessage();
@@ -928,6 +1066,7 @@ function updateProjectiles(dt) {
       if (distance(projectile, player) <= projectile.radius + player.radius * 0.75) {
         projectile.active = false;
         player.hp = Math.max(0, player.hp - projectile.damage);
+        addSpecialGauge(10);
         player.invincibleTimer = 0.55;
         addFloatingText(player.x, player.y - 62, `-${projectile.damage}`, "#ff6b5a");
         if (player.hp <= 0) showPlayerDefeatMessage();
@@ -950,6 +1089,7 @@ function updateProjectiles(dt) {
         enemy.knockbackX = Math.sign(projectile.vx) * 210;
         enemy.knockbackY = -24;
         state.score += 30;
+        addSpecialGauge(6);
         addFloatingText(enemy.x, enemy.y - 72, `-${projectile.damage}`, "#fff1be");
       });
     }
@@ -1136,18 +1276,32 @@ function applyEnemyAttack(enemy, player) {
 
   enemy.hasDamagedThisSwing = true;
   player.hp = Math.max(0, player.hp - enemy.damage);
+  addSpecialGauge(10);
   player.invincibleTimer = 0.55;
   addFloatingText(player.x, player.y - 62, `-${enemy.damage}`, "#ff6b5a");
   if (player.hp <= 0) showPlayerDefeatMessage();
 }
 
+function damageEnemy(enemy, damage, options = {}) {
+  enemy.hp -= damage;
+  enemy.hitFlash = options.flash ?? 0.18;
+  enemy.hitStopTimer = options.hitStop ?? 0.18;
+  enemy.attackWindup = 0;
+  enemy.attackActive = 0;
+  enemy.hasDamagedThisSwing = false;
+  enemy.knockbackX = options.knockbackX ?? 0;
+  enemy.knockbackY = options.knockbackY ?? 0;
+  state.score += options.score ?? 25;
+}
+
 function updateAttacks(dt) {
   state.attacks.forEach((attack) => {
     attack.age += dt;
-    const hitLeft = attack.x - attack.width / 2;
-    const hitRight = attack.x + attack.width / 2;
-    const hitTop = attack.y - attack.height / 2;
-    const hitBottom = attack.y + attack.height / 2;
+    const isRadialAttack = attack.type === "special";
+    const hitLeft = isRadialAttack ? attack.x - attack.radius : attack.x - attack.width / 2;
+    const hitRight = isRadialAttack ? attack.x + attack.radius : attack.x + attack.width / 2;
+    const hitTop = isRadialAttack ? attack.y - attack.radius : attack.y - attack.height / 2;
+    const hitBottom = isRadialAttack ? attack.y + attack.radius : attack.y + attack.height / 2;
 
     state.projectiles.forEach((projectile) => {
       if (!projectile.active || projectile.type !== "enemy_knife") return;
@@ -1163,45 +1317,48 @@ function updateAttacks(dt) {
       addFloatingText(projectile.x, projectile.y - 18, "CLANG!", "#79d7ff");
     });
 
-    state.breakables.forEach((breakable) => {
-      if (!breakable.active || attack.hasHit.has(breakable)) return;
-      const isHit =
-        breakable.x + breakable.width / 2 > hitLeft &&
-        breakable.x - breakable.width / 2 < hitRight &&
-        breakable.y + breakable.height / 2 > hitTop &&
-        breakable.y - breakable.height / 2 < hitBottom;
+    if (!isRadialAttack) {
+      state.breakables.forEach((breakable) => {
+        if (!breakable.active || attack.hasHit.has(breakable)) return;
+        const isHit =
+          breakable.x + breakable.width / 2 > hitLeft &&
+          breakable.x - breakable.width / 2 < hitRight &&
+          breakable.y + breakable.height / 2 > hitTop &&
+          breakable.y - breakable.height / 2 < hitBottom;
 
-      if (!isHit) return;
-      attack.hasHit.add(breakable);
-      breakable.hp -= attack.damage;
-      breakable.hitFlash = 0.16;
-      breakable.wobbleTimer = 0.18;
-      state.score += 10;
-      addFloatingText(breakable.x, breakable.y - breakable.height / 2 - 20, `-${attack.damage}`, "#fff1be");
-    });
+        if (!isHit) return;
+        attack.hasHit.add(breakable);
+        breakable.hp -= attack.damage;
+        breakable.hitFlash = 0.16;
+        breakable.wobbleTimer = 0.18;
+        state.score += 10;
+        addFloatingText(breakable.x, breakable.y - breakable.height / 2 - 20, `-${attack.damage}`, "#fff1be");
+      });
+    }
 
     state.enemies.forEach((enemy) => {
       if (attack.hasHit.has(enemy)) return;
-      const isHit =
-        enemy.x + enemy.radius > hitLeft &&
-        enemy.x - enemy.radius < hitRight &&
-        enemy.y + enemy.radius > hitTop &&
-        enemy.y - enemy.radius < hitBottom;
+      const isHit = isRadialAttack
+        ? distance(enemy, attack) <= attack.radius + enemy.radius * 0.65
+        : enemy.x + enemy.radius > hitLeft &&
+          enemy.x - enemy.radius < hitRight &&
+          enemy.y + enemy.radius > hitTop &&
+          enemy.y - enemy.radius < hitBottom;
 
       if (!isHit) return;
       attack.hasHit.add(enemy);
-      enemy.hp -= attack.damage;
-      const isFinisher = attack.comboStep === 3 || attack.comboStep === "K";
-      enemy.hitFlash = isFinisher ? 0.28 : 0.18;
-      enemy.hitStopTimer = attack.hitStop;
-      enemy.attackWindup = 0;
-      enemy.attackActive = 0;
-      enemy.hasDamagedThisSwing = false;
-      enemy.knockbackX = attack.facing * attack.knockback * 5.5;
-      enemy.knockbackY = isFinisher ? -40 : 0;
-      state.score += 25;
+      const isFinisher = attack.comboStep === 3 || attack.comboStep === "K" || attack.type === "special";
+      const knockbackDirection = isRadialAttack ? Math.sign(enemy.x - attack.x) || state.player.facing : attack.facing;
+      damageEnemy(enemy, attack.damage, {
+        knockbackX: knockbackDirection * attack.knockback * (isRadialAttack ? 4.5 : 5.5),
+        knockbackY: isFinisher ? -40 : 0,
+        hitStop: attack.hitStop,
+        flash: isFinisher ? 0.28 : 0.18,
+        score: isRadialAttack ? 35 : 25,
+      });
+      addSpecialGauge(isRadialAttack ? 0 : isFinisher ? 7 : 4);
       addFloatingText(enemy.x, enemy.y - 70, `-${attack.damage}`, "#fff1be");
-      if (isFinisher) {
+      if (isFinisher && !isRadialAttack) {
         addFloatingText(enemy.x, enemy.y - 116, attack.comboStep === "K" ? "JUMP KICK!" : "KNOCK!", "#79d7ff");
       }
     });
@@ -1264,7 +1421,16 @@ function enterNextArea() {
 }
 
 function update(dt) {
+  if (state.continueActive) {
+    updateContinue(dt);
+    updateFloatingTexts(dt);
+    updateHud();
+    return;
+  }
+
   state.areaTransitionTimer = Math.max(0, state.areaTransitionTimer - dt);
+  state.superFlashTimer = Math.max(0, state.superFlashTimer - dt);
+  updateActionHold(dt);
   updatePlayer(dt);
   updateBikeSpawner(dt);
   updateEnemies(dt);
@@ -1293,6 +1459,10 @@ function updateHud() {
       : "linear-gradient(90deg, var(--hp), #d7ff77)";
   hpText.textContent = `HP ${state.player.hp}/${state.player.maxHp}`;
   lifeText.textContent = `LIFE ${state.lives}`;
+  const specialRatio = state.player.specialGauge / SPECIAL_GAUGE.max;
+  specialBar.style.width = `${specialRatio * 100}%`;
+  specialText.textContent = `${Math.floor(state.player.specialGauge)}%`;
+  specialButton.classList.toggle("is-ready", state.player.specialGauge >= SPECIAL_GAUGE.max);
   scoreText.textContent = String(state.score);
 }
 
@@ -1434,6 +1604,26 @@ function drawAreaTransition(scaleX, scaleY) {
   ctx.lineTo(sweepX, WORLD.floorBottom);
   ctx.stroke();
 
+  ctx.restore();
+}
+
+function drawSuperFlash(scaleX, scaleY) {
+  if (state.superFlashTimer <= 0) return;
+
+  const t = state.superFlashTimer / 0.42;
+  ctx.save();
+  ctx.scale(scaleX, scaleY);
+  ctx.fillStyle = `rgba(255, 200, 87, ${0.28 * t})`;
+  ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+
+  ctx.strokeStyle = `rgba(121, 215, 255, ${0.7 * t})`;
+  ctx.lineWidth = 7;
+  for (let x = -120; x < WORLD.width + 180; x += 155) {
+    ctx.beginPath();
+    ctx.moveTo(x, WORLD.floorBottom + 20);
+    ctx.lineTo(x + 190, WORLD.floorTop - 40);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -1934,6 +2124,27 @@ function drawEnemyAttackBox(enemy, scaleX, scaleY) {
 function drawAttacks(scaleX, scaleY) {
   state.attacks.forEach((attack) => {
     const t = attack.age / attack.duration;
+    if (attack.type === "special") {
+      ctx.save();
+      ctx.translate(attack.x * scaleX, attack.y * scaleY);
+      ctx.scale(scaleX, scaleY);
+      ctx.globalAlpha = 1 - t;
+      ctx.fillStyle = "rgba(121, 215, 255, 0.18)";
+      ctx.strokeStyle = "rgba(121, 215, 255, 0.95)";
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.arc(0, 0, attack.radius * (0.72 + t * 0.38), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#79d7ff";
+      ctx.font = "900 18px Trebuchet MS, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("SPECIAL", 0, -attack.radius - 12);
+      ctx.restore();
+      return;
+    }
+
     const isJumpKick = attack.comboStep === "K";
     ctx.save();
     ctx.translate(attack.x * scaleX, attack.y * scaleY);
@@ -2016,6 +2227,7 @@ function render() {
   drawFloatingTexts(scaleX, scaleY);
   drawJoystick(scaleX, scaleY);
   drawAreaTransition(scaleX, scaleY);
+  drawSuperFlash(scaleX, scaleY);
 }
 
 function loop(now) {
@@ -2059,6 +2271,18 @@ function preventBrowserZoomGestures() {
 }
 
 window.addEventListener("keydown", (event) => {
+  if (state.continueActive) {
+    if (event.code === "Space" || event.code === "Enter") {
+      event.preventDefault();
+      acceptContinue();
+    }
+    if (event.code === "Escape") {
+      event.preventDefault();
+      giveUpContinue();
+    }
+    return;
+  }
+
   input.keys.add(event.code);
   if ((event.code === "ArrowLeft" || event.code === "KeyA") && event.shiftKey) {
     event.preventDefault();
@@ -2073,6 +2297,14 @@ window.addEventListener("keydown", (event) => {
   if (event.code === "Space") {
     event.preventDefault();
     requestAttack();
+  }
+  if (event.code === "KeyQ") {
+    event.preventDefault();
+    requestSpecialSkill();
+  }
+  if (event.code === "KeyR") {
+    event.preventDefault();
+    requestSuperSpecial();
   }
 });
 
@@ -2092,6 +2324,8 @@ function clearActionPointerInput() {
   input.actionPointerId = null;
   input.actionStart = null;
   input.actionCurrent = null;
+  input.actionHoldTimer = 0;
+  input.actionHoldTriggered = false;
 }
 
 function clearPointerInput() {
@@ -2120,7 +2354,19 @@ function safelyReleasePointerCapture(pointerId) {
   }
 }
 
+function updateActionHold(dt) {
+  if (input.actionPointerId === null || !input.actionStart || input.actionHoldTriggered) return;
+  if (!canUsePlayerAction()) return;
+
+  input.actionHoldTimer += dt;
+  if (input.actionHoldTimer < SPECIAL_GAUGE.skillHoldTime) return;
+  input.actionHoldTriggered = true;
+  requestSuperSpecial();
+}
+
 canvas.addEventListener("pointerdown", (event) => {
+  if (state.continueActive) return;
+
   safelySetPointerCapture(event.pointerId);
   const point = screenToWorld(event);
   const isLeftHalf = point.screenX < point.screenWidth / 2;
@@ -2136,6 +2382,8 @@ canvas.addEventListener("pointerdown", (event) => {
     input.actionPointerId = event.pointerId;
     input.actionStart = { x: point.x, y: point.y };
     input.actionCurrent = { x: point.x, y: point.y };
+    input.actionHoldTimer = 0;
+    input.actionHoldTriggered = false;
   } else {
     requestAttack();
   }
@@ -2166,7 +2414,7 @@ canvas.addEventListener("pointerup", (event) => {
   }
 
   if (event.pointerId === input.actionPointerId) {
-    if (!maybeTriggerJumpFromActionSwipe()) requestAttack();
+    if (!input.actionHoldTriggered && !maybeTriggerActionSwipe()) requestAttack();
     clearActionPointerInput();
   }
 });
@@ -2214,20 +2462,35 @@ document.addEventListener(
 
 document.addEventListener("touchcancel", clearPointerInput, { passive: true });
 
-function maybeTriggerJumpFromActionSwipe() {
+continueButton.addEventListener("click", acceptContinue);
+giveUpButton.addEventListener("click", giveUpContinue);
+
+function maybeTriggerActionSwipe() {
   if (!input.actionStart || !input.actionCurrent) return false;
   const dx = input.actionCurrent.x - input.actionStart.x;
   const dy = input.actionCurrent.y - input.actionStart.y;
   const distanceMoved = Math.hypot(dx, dy);
   const angleFromStraightUp = Math.abs(Math.atan2(dx, -dy) * (180 / Math.PI));
+  const angleFromStraightDown = Math.abs(Math.atan2(dx, dy) * (180 / Math.PI));
   const isLooseUpSwipe =
     distanceMoved >= JUMP.swipeMinDistance &&
     dy <= JUMP.swipeUpThreshold &&
     angleFromStraightUp <= JUMP.swipeAngleToleranceDegrees;
+  const isLooseDownSwipe =
+    distanceMoved >= JUMP.swipeMinDistance &&
+    dy >= Math.abs(JUMP.swipeUpThreshold) &&
+    angleFromStraightDown <= JUMP.swipeAngleToleranceDegrees;
 
-  if (!isLooseUpSwipe) return false;
-  requestJump(getJumpDirectionFromMovement());
-  return true;
+  if (isLooseUpSwipe) {
+    requestJump(getJumpDirectionFromMovement());
+    return true;
+  }
+
+  if (isLooseDownSwipe) {
+    return requestSpecialSkill();
+  }
+
+  return false;
 }
 
 function getJumpDirectionFromMovement() {

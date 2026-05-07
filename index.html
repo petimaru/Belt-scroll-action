@@ -25,6 +25,13 @@
           </div>
           <strong id="hpText">HP 100/100</strong>
         </div>
+        <button id="specialButton" class="special-card" type="button" aria-label="超必殺技ゲージ">
+          <span class="label">Special</span>
+          <span class="special-meter">
+            <span id="specialBar"></span>
+          </span>
+          <strong id="specialText">0%</strong>
+        </button>
         <div class="score-card">
           <span class="label">Score</span>
           <strong id="scoreText">0</strong>
@@ -34,12 +41,20 @@
       <section class="playfield-wrap">
         <canvas id="gameCanvas" width="960" height="540" aria-label="ゲーム画面"></canvas>
         <div class="touch-help left">左半分ドラッグ: 移動</div>
-        <div class="touch-help right">右半分: タップ攻撃 / 上スワイプジャンプ</div>
+        <div class="touch-help right">右半分: タップ攻撃 / 下フリック必殺 / 長押し超必殺 / 上スワイプジャンプ</div>
         <div id="message" class="message" aria-live="polite"></div>
+        <div id="continueOverlay" class="continue-overlay" aria-live="assertive" hidden>
+          <div class="continue-count" id="continueCount">10</div>
+          <div class="continue-title">CONTINUE?</div>
+          <div class="continue-actions">
+            <button id="continueButton" type="button">Continue</button>
+            <button id="giveUpButton" type="button">Give Up</button>
+          </div>
+        </div>
       </section>
 
       <footer class="hud hud-bottom">
-        <p>PC操作: WASD / 矢印キーで移動、Space / クリックで攻撃、Shift+左右でジャンプ</p>
+        <p>PC操作: WASD / 矢印キーで移動、Space / クリックで攻撃、Qで必殺、Rで超必殺、Shift+左右でジャンプ</p>
         <p>Prototype: 全滅後に右側ゲート解放、次エリアへ進行</p>
       </footer>
     </main>

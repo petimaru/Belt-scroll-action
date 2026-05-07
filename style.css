@@ -70,15 +70,60 @@ body {
   font-size: clamp(11px, 1.7vw, 14px);
 }
 
+.hud-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
 .hud-bottom p {
   margin: 0;
 }
 
 .player-card,
-.score-card {
+.score-card,
+.special-card {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.player-card {
+  min-width: 0;
+}
+
+.player-card > div {
+  min-width: 0;
+}
+
+.score-card,
+#hpText {
+  white-space: nowrap;
+}
+
+.special-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  width: clamp(118px, 17vw, 170px);
+  gap: 5px 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.special-card .label {
+  grid-column: 1 / -1;
+}
+
+.special-card.is-ready #specialText {
+  color: var(--gold);
+}
+
+.special-card.is-ready .special-meter {
+  border-color: rgba(255, 200, 87, 0.68);
+  box-shadow: 0 0 18px rgba(255, 200, 87, 0.18);
 }
 
 .avatar {
@@ -116,7 +161,7 @@ body {
 }
 
 .meter {
-  width: min(34vw, 300px);
+  width: clamp(150px, 30vw, 300px);
   height: 13px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -133,13 +178,39 @@ body {
   transition: width 120ms linear, background-color 120ms linear;
 }
 
+.special-meter {
+  display: block;
+  width: 100%;
+  height: 11px;
+  overflow: hidden;
+  border: 1px solid rgba(121, 215, 255, 0.32);
+  border-radius: 999px;
+  background: rgba(121, 215, 255, 0.1);
+}
+
+.special-meter span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #79d7ff, #ffc857);
+  transition: width 140ms linear;
+}
+
 #hpText,
-#scoreText {
+#scoreText,
+#specialText {
   font-size: clamp(16px, 2.5vw, 24px);
 }
 
 #scoreText {
   color: var(--gold);
+}
+
+#specialText {
+  color: #79d7ff;
+  min-width: 36px;
+  text-align: right;
 }
 
 .playfield-wrap {
@@ -205,6 +276,57 @@ body {
 .message.is-visible {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
+}
+
+.continue-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 14px;
+  background: rgba(5, 8, 7, 0.72);
+  color: var(--text);
+  text-align: center;
+}
+
+.continue-overlay[hidden] {
+  display: none;
+}
+
+.continue-count {
+  color: var(--gold);
+  font-size: clamp(56px, 12vw, 112px);
+  font-weight: 900;
+  line-height: 0.9;
+}
+
+.continue-title {
+  font-size: clamp(24px, 5vw, 46px);
+  font-weight: 900;
+}
+
+.continue-actions {
+  display: flex;
+  gap: 14px;
+}
+
+.continue-actions button {
+  min-width: 126px;
+  padding: 12px 18px;
+  border: 1px solid rgba(255, 232, 180, 0.28);
+  border-radius: 12px;
+  background: rgba(18, 25, 19, 0.92);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.continue-actions button:first-child {
+  background: rgba(121, 215, 255, 0.22);
+  border-color: rgba(121, 215, 255, 0.55);
 }
 
 @media (orientation: portrait) {
