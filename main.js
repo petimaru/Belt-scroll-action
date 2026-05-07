@@ -115,6 +115,11 @@ const MID_BOSS_ENEMY = {
   radius: 38,
   speed: 58,
   damage: 18,
+  frontGuardDamageScale: 0.35,
+  backWeakDamageScale: 1.35,
+  guardDuration: 0.78,
+  guardCooldown: 4.2,
+  guardRange: 190,
   attackRangeX: 86,
   attackRangeY: 58,
   attackCooldown: 1.75,
@@ -427,6 +432,8 @@ function createMidBossEnemy(round = 1) {
     attackStartY: null,
     attackLanded: false,
     visualJumpHeight: 0,
+    guardTimer: 0,
+    guardCooldown: 1.25,
     hasDamagedThisSwing: false,
     facing: -1,
     wanderTimer: 0,
@@ -1082,9 +1089,12 @@ function updateGunnerEnemy(enemy, player, dt) {
 
 function updateMidBossEnemy(enemy, player, dt) {
   const wasWindingUp = enemy.attackWindup > 0;
+  const wasGuarding = enemy.guardTimer > 0;
   enemy.attackCooldown = Math.max(0, enemy.attackCooldown - dt);
   enemy.attackWindup = Math.max(0, enemy.attackWindup - dt);
   enemy.attackActive = Math.max(0, enemy.attackActive - dt);
+  enemy.guardTimer = Math.max(0, enemy.guardTimer - dt);
+  enemy.guardCooldown = Math.max(0, enemy.guardCooldown - dt);
   enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
   enemy.hitStopTimer = Math.max(0, enemy.hitStopTimer - dt);
 
@@ -1101,7 +1111,12 @@ function updateMidBossEnemy(enemy, player, dt) {
     return;
   }
 
-  if (enemy.lockedFacing !== null && enemy.attackWindup <= 0 && enemy.attackActive <= 0 && !wasWindingUp) {
+  if (wasGuarding && enemy.guardTimer <= 0) {
+    clearMidBossAttackState(enemy);
+    enemy.attackCooldown = 0;
+  }
+
+  if (enemy.lockedFacing !== null && enemy.attackWindup <= 0 && enemy.attackActive <= 0 && enemy.guardTimer <= 0 && !wasWindingUp) {
     clearMidBossAttackState(enemy);
   }
 
@@ -1142,6 +1157,16 @@ function updateMidBossEnemy(enemy, player, dt) {
     return;
   }
 
+  if (enemy.guardTimer > 0) {
+    enemy.facing = enemy.lockedFacing ?? enemy.facing;
+    return;
+  }
+
+  if (gap <= MID_BOSS_ENEMY.guardRange && enemy.guardCooldown <= 0 && enemy.attackCooldown <= 0) {
+    startMidBossGuard(enemy);
+    return;
+  }
+
   if (inShockRange && enemy.attackCooldown <= 0) {
     startMidBossAttack(enemy, "shock", player);
     return;
@@ -1165,6 +1190,16 @@ function updateMidBossEnemy(enemy, player, dt) {
   enemy.x += toPlayer.x * enemy.speed * dt;
   enemy.y += toPlayer.y * enemy.speed * 0.42 * dt;
   nudgeEnemyFromSideEdges(enemy, dt, 0.35);
+}
+
+function startMidBossGuard(enemy) {
+  enemy.lockedFacing = enemy.facing;
+  enemy.attackType = "guard";
+  enemy.attackWindup = 0;
+  enemy.attackActive = 0;
+  enemy.guardTimer = MID_BOSS_ENEMY.guardDuration;
+  enemy.guardCooldown = MID_BOSS_ENEMY.guardCooldown;
+  enemy.hasDamagedThisSwing = false;
 }
 
 function startMidBossAttack(enemy, attackType, player) {
@@ -1436,17 +1471,20 @@ function updateProjectiles(dt) {
 
         projectile.hasHit.add(enemy);
         projectile.active = false;
-        enemy.hp -= projectile.damage;
-        enemy.hitFlash = 0.22;
-        enemy.hitStopTimer = 0.18;
-        enemy.attackWindup = 0;
-        enemy.attackActive = 0;
-        enemy.hasDamagedThisSwing = false;
-        enemy.knockbackX = Math.sign(projectile.vx) * 210;
-        enemy.knockbackY = -24;
-        state.score += 30;
+        const projectileFacing = Math.sign(projectile.vx) || state.player.facing;
+        const bossDefense = damageEnemy(enemy, projectile.damage, {
+          knockbackX: projectileFacing * 210,
+          knockbackY: -24,
+          hitStop: 0.18,
+          flash: 0.22,
+          score: 30,
+          sourceX: enemy.x - projectileFacing * 100,
+          useBossDefense: true,
+        });
         addSpecialGauge(6);
-        addFloatingText(enemy.x, enemy.y - 72, `-${projectile.damage}`, "#fff1be");
+        addFloatingText(enemy.x, enemy.y - 72, `-${bossDefense.damage}`, "#fff1be");
+        if (bossDefense.type === "guard") addFloatingText(enemy.x, enemy.y - 108, "GUARD", "#79d7ff");
+        if (bossDefense.type === "back") addFloatingText(enemy.x, enemy.y - 108, "BACK HIT!", "#ffc857");
       });
     }
 
@@ -1670,9 +1708,10 @@ function applyEnemyAttack(enemy, player) {
 }
 
 function damageEnemy(enemy, damage, options = {}) {
-  const hasBossArmor = isBossEnemy(enemy) && (enemy.attackWindup > 0 || enemy.attackActive > 0);
+  const hasBossArmor = isBossEnemy(enemy) && (enemy.attackWindup > 0 || enemy.attackActive > 0 || enemy.guardTimer > 0);
   const knockbackScale = isBossEnemy(enemy) ? 0.35 : 1;
-  enemy.hp -= damage;
+  const bossDefense = getBossDefenseResult(enemy, damage, options);
+  enemy.hp -= bossDefense.damage;
   enemy.hitFlash = options.flash ?? 0.18;
   enemy.hitStopTimer = hasBossArmor ? Math.min(options.hitStop ?? 0.18, 0.05) : options.hitStop ?? 0.18;
   if (!hasBossArmor) {
@@ -1683,6 +1722,24 @@ function damageEnemy(enemy, damage, options = {}) {
   enemy.knockbackX = (options.knockbackX ?? 0) * knockbackScale;
   enemy.knockbackY = (options.knockbackY ?? 0) * knockbackScale;
   state.score += options.score ?? 25;
+  return bossDefense;
+}
+
+function getBossDefenseResult(enemy, damage, options = {}) {
+  if (!options.useBossDefense || !isBossEnemy(enemy) || typeof options.sourceX !== "number") {
+    return { damage, type: "normal" };
+  }
+  if (enemy.guardTimer <= 0) return { damage, type: "normal" };
+
+  const sideFromBoss = Math.sign(options.sourceX - enemy.x);
+  if (sideFromBoss === 0) return { damage, type: "normal" };
+
+  const isFrontHit = sideFromBoss === enemy.facing;
+  const scale = isFrontHit ? MID_BOSS_ENEMY.frontGuardDamageScale : MID_BOSS_ENEMY.backWeakDamageScale;
+  return {
+    damage: Math.max(1, Math.round(damage * scale)),
+    type: isFrontHit ? "guard" : "back",
+  };
 }
 
 function updateAttacks(dt) {
@@ -1740,15 +1797,19 @@ function updateAttacks(dt) {
       attack.hasHit.add(enemy);
       const isFinisher = attack.comboStep === 3 || attack.comboStep === "K" || attack.type === "special";
       const knockbackDirection = isRadialAttack ? Math.sign(enemy.x - attack.x) || state.player.facing : attack.facing;
-      damageEnemy(enemy, attack.damage, {
+      const bossDefense = damageEnemy(enemy, attack.damage, {
         knockbackX: knockbackDirection * attack.knockback * (isRadialAttack ? 4.5 : 5.5),
         knockbackY: isFinisher ? -40 : 0,
         hitStop: attack.hitStop,
         flash: isFinisher ? 0.28 : 0.18,
         score: isRadialAttack ? 35 : 25,
+        sourceX: attack.x - attack.facing * Math.max(attack.reach ?? 0, 60),
+        useBossDefense: !isRadialAttack,
       });
       addSpecialGauge(isRadialAttack ? 0 : isFinisher ? 7 : 4);
-      addFloatingText(enemy.x, enemy.y - 70, `-${attack.damage}`, "#fff1be");
+      addFloatingText(enemy.x, enemy.y - 70, `-${bossDefense.damage}`, "#fff1be");
+      if (bossDefense.type === "guard") addFloatingText(enemy.x, enemy.y - 106, "GUARD", "#79d7ff");
+      if (bossDefense.type === "back") addFloatingText(enemy.x, enemy.y - 106, "BACK HIT!", "#ffc857");
       if (isFinisher && !isRadialAttack) {
         addFloatingText(enemy.x, enemy.y - 116, attack.comboStep === "K" ? "JUMP KICK!" : "KNOCK!", "#79d7ff");
       }
@@ -2306,6 +2367,16 @@ function drawMidBossEnemy(enemy, scaleX, scaleY) {
   ctx.roundRect(-34, -52, 68, 82, 17);
   ctx.fill();
 
+  if (enemy.guardTimer > 0) {
+    ctx.fillStyle = "rgba(121, 215, 255, 0.24)";
+    ctx.strokeStyle = "#79d7ff";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.roundRect(18, -58, 26, 72, 12);
+    ctx.fill();
+    ctx.stroke();
+  }
+
   ctx.fillStyle = "#2b1223";
   ctx.beginPath();
   ctx.arc(0, -66, 22, 0, Math.PI * 2);
@@ -2315,12 +2386,12 @@ function drawMidBossEnemy(enemy, scaleX, scaleY) {
   ctx.fillRect(7, -70, 6, 5);
   ctx.fillRect(-13, -70, 6, 5);
 
-  ctx.strokeStyle = enemy.attackActive > 0 ? "#ffc857" : enemy.attackType === "charge" && enemy.attackWindup > 0 ? "#79d7ff" : "#321726";
+  ctx.strokeStyle = enemy.guardTimer > 0 ? "#79d7ff" : enemy.attackActive > 0 ? "#ffc857" : enemy.attackType === "charge" && enemy.attackWindup > 0 ? "#79d7ff" : "#321726";
   ctx.lineWidth = enemy.attackWindup > 0 || enemy.attackActive > 0 ? 10 : 7;
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(26, -22);
-  ctx.lineTo(enemy.attackType === "charge" ? 76 : 64, enemy.attackType === "charge" ? -12 : -18);
+  ctx.moveTo(enemy.guardTimer > 0 ? 18 : 26, enemy.guardTimer > 0 ? -28 : -22);
+  ctx.lineTo(enemy.guardTimer > 0 ? 38 : enemy.attackType === "charge" ? 76 : 64, enemy.guardTimer > 0 ? -2 : enemy.attackType === "charge" ? -12 : -18);
   ctx.stroke();
 
   if (enemy.attackType === "charge" && enemy.attackActive > 0) {
@@ -2354,7 +2425,9 @@ function drawMidBossEnemy(enemy, scaleX, scaleY) {
 
   ctx.restore();
 
-  if (enemy.attackWindup > 0) {
+  if (enemy.guardTimer > 0) {
+    drawEnemyWindupLabel(enemy, "GUARD", "#79d7ff", scaleX, scaleY);
+  } else if (enemy.attackWindup > 0) {
     drawEnemyWindupLabel(enemy, getMidBossAttackLabel(enemy), getMidBossAttackLabelColor(enemy), scaleX, scaleY);
   }
 }
