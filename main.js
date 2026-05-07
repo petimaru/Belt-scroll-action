@@ -110,6 +110,20 @@ const GUNNER_ENEMY = {
   bulletDamage: 16,
 };
 
+const MID_BOSS_ENEMY = {
+  hp: 360,
+  radius: 38,
+  speed: 58,
+  damage: 18,
+  attackRangeX: 86,
+  attackRangeY: 58,
+  attackCooldown: 1.75,
+  attackWindup: 0.62,
+  attackActive: 0.22,
+};
+
+const BOSS_TYPES = new Set(["mid_boss_brawler"]);
+
 const ITEM_TYPES = {
   onigiri: { icon: "🍙", heal: 10, label: "+10 HP" },
   cake: { icon: "🍰", heal: 30, label: "+30 HP" },
@@ -365,6 +379,42 @@ function createKnifeEnemy(round = 1, index = 0) {
   };
 }
 
+function createMidBossEnemy(round = 1) {
+  const y = WORLD.floorTop + 182;
+  const maxHp = MID_BOSS_ENEMY.hp + Math.min(round * 18, 180);
+  return {
+    type: "mid_boss_brawler",
+    bossRank: "mid",
+    name: "中ボス",
+    x: WORLD.width + 92,
+    y,
+    entryX: 650,
+    entryY: y,
+    entryMode: "side",
+    entering: true,
+    radius: MID_BOSS_ENEMY.radius,
+    hp: maxHp,
+    maxHp,
+    speed: MID_BOSS_ENEMY.speed + Math.min(round * 2, 24),
+    damage: MID_BOSS_ENEMY.damage + Math.min(Math.floor(round / 5) * 4, 12),
+    attackRangeX: MID_BOSS_ENEMY.attackRangeX,
+    attackRangeY: MID_BOSS_ENEMY.attackRangeY,
+    chaseRange: 430,
+    attackCooldown: 1.1,
+    attackWindup: 0,
+    attackActive: 0,
+    hasDamagedThisSwing: false,
+    facing: -1,
+    wanderTimer: 0,
+    wanderX: -0.35,
+    wanderY: 0,
+    hitFlash: 0,
+    hitStopTimer: 0,
+    knockbackX: 0,
+    knockbackY: 0,
+  };
+}
+
 function createBikeEnemy(round = 1, index = 0) {
   const fromRight = Math.random() > 0.5;
   const laneHeight = WORLD.floorBottom - WORLD.floorTop - 120;
@@ -431,12 +481,28 @@ function resetRun(keepScore = false) {
 
 function spawnWave(preserveEventEnemies = false) {
   state.exitGateOpen = false;
+  if (isMidBossRound(state.wave)) {
+    state.enemies = [createMidBossEnemy(state.wave)];
+    state.breakables = createBreakablesForWave(state.wave);
+    state.bikeSpawnTimer = null;
+    state.bikeSpawnsRemaining = 0;
+    return;
+  }
+
   const enemyCount = state.wave === 1 ? 2 : 2 + Math.floor(Math.random() * 2);
   const eventEnemies = preserveEventEnemies ? state.enemies.filter((enemy) => enemy.type === "bike_rusher") : [];
   const regularEnemies = Array.from({ length: enemyCount }, (_, index) => createEnemy(state.wave, index));
   state.enemies = [...eventEnemies, ...regularEnemies];
   state.breakables = createBreakablesForWave(state.wave);
   scheduleBikeSpawnsForWave();
+}
+
+function isMidBossRound(round) {
+  return round > 0 && round % 5 === 0;
+}
+
+function isBossEnemy(enemy) {
+  return BOSS_TYPES.has(enemy.type);
 }
 
 function createBreakablesForWave(round) {
@@ -854,6 +920,11 @@ function updateEnemies(dt) {
       return;
     }
 
+    if (enemy.type === "mid_boss_brawler") {
+      updateMidBossEnemy(enemy, player, dt);
+      return;
+    }
+
     if (enemy.type === "knife_thrower") {
       updateKnifeEnemy(enemy, player, dt);
       return;
@@ -977,6 +1048,62 @@ function updateGunnerEnemy(enemy, player, dt) {
     enemy.shotWindup = GUNNER_ENEMY.shotWindup;
     enemy.hasQueuedShot = true;
   }
+}
+
+function updateMidBossEnemy(enemy, player, dt) {
+  const wasWindingUp = enemy.attackWindup > 0;
+  enemy.attackCooldown = Math.max(0, enemy.attackCooldown - dt);
+  enemy.attackWindup = Math.max(0, enemy.attackWindup - dt);
+  enemy.attackActive = Math.max(0, enemy.attackActive - dt);
+  enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
+  enemy.hitStopTimer = Math.max(0, enemy.hitStopTimer - dt);
+
+  if (player.hp <= 0) return;
+
+  applyEnemyKnockback(enemy, dt);
+
+  if (enemy.hitStopTimer > 0) {
+    enemy.attackWindup = 0;
+    enemy.attackActive = 0;
+    enemy.hasDamagedThisSwing = false;
+    return;
+  }
+
+  if (enemy.entering) {
+    updateEnemyEntrance(enemy, dt);
+    return;
+  }
+
+  const dx = player.x - enemy.x;
+  const dy = player.y - enemy.y;
+  const toPlayer = normalize(dx, dy);
+  const inMeleeRange = Math.abs(dx) <= enemy.attackRangeX && Math.abs(dy) <= enemy.attackRangeY;
+
+  if (Math.abs(dx) > 4) enemy.facing = dx > 0 ? 1 : -1;
+
+  if (enemy.attackActive > 0) {
+    applyEnemyAttack(enemy, player);
+    return;
+  }
+
+  if (wasWindingUp && enemy.attackWindup <= 0) {
+    enemy.attackActive = MID_BOSS_ENEMY.attackActive;
+    return;
+  }
+
+  if (enemy.attackWindup > 0) return;
+
+  if (inMeleeRange && enemy.attackCooldown <= 0) {
+    enemy.attackWindup = MID_BOSS_ENEMY.attackWindup;
+    enemy.attackActive = 0;
+    enemy.attackCooldown = MID_BOSS_ENEMY.attackCooldown + Math.random() * 0.45;
+    enemy.hasDamagedThisSwing = false;
+    return;
+  }
+
+  enemy.x += toPlayer.x * enemy.speed * dt;
+  enemy.y += toPlayer.y * enemy.speed * 0.42 * dt;
+  nudgeEnemyFromSideEdges(enemy, dt, 0.35);
 }
 
 function fireEnemyBullet(enemy, player) {
@@ -1312,11 +1439,22 @@ function updateEnemyEntrance(enemy, dt) {
 }
 
 function getEnemyAttackBox(enemy) {
+  if (isBossEnemy(enemy)) return getBossAttackBox(enemy);
+
   return {
     x: enemy.x + enemy.facing * 42,
     y: enemy.y - 4,
     width: 68,
     height: 52,
+  };
+}
+
+function getBossAttackBox(enemy) {
+  return {
+    x: enemy.x + enemy.facing * 60,
+    y: enemy.y - 8,
+    width: 108,
+    height: 72,
   };
 }
 
@@ -1349,14 +1487,15 @@ function applyEnemyAttack(enemy, player) {
 }
 
 function damageEnemy(enemy, damage, options = {}) {
+  const knockbackScale = isBossEnemy(enemy) ? 0.35 : 1;
   enemy.hp -= damage;
   enemy.hitFlash = options.flash ?? 0.18;
   enemy.hitStopTimer = options.hitStop ?? 0.18;
   enemy.attackWindup = 0;
   enemy.attackActive = 0;
   enemy.hasDamagedThisSwing = false;
-  enemy.knockbackX = options.knockbackX ?? 0;
-  enemy.knockbackY = options.knockbackY ?? 0;
+  enemy.knockbackX = (options.knockbackX ?? 0) * knockbackScale;
+  enemy.knockbackY = (options.knockbackY ?? 0) * knockbackScale;
   state.score += options.score ?? 25;
 }
 
@@ -1769,6 +1908,11 @@ function drawEnemies(scaleX, scaleY) {
       return;
     }
 
+    if (enemy.type === "mid_boss_brawler") {
+      drawMidBossEnemy(enemy, scaleX, scaleY);
+      return;
+    }
+
     if (enemy.type === "knife_thrower") {
       drawKnifeEnemy(enemy, scaleX, scaleY);
       return;
@@ -1935,6 +2079,86 @@ function drawEnemyWindupLabel(enemy, label, color, scaleX, scaleY) {
   ctx.textAlign = "center";
   ctx.fillText(label, enemy.x, enemy.y - 70);
   ctx.restore();
+}
+
+function drawBossHud(scaleX, scaleY) {
+  const boss = state.enemies.find(isBossEnemy);
+  if (!boss) return;
+
+  const hpRatio = Math.max(0, boss.hp / boss.maxHp);
+  ctx.save();
+  ctx.scale(scaleX, scaleY);
+  ctx.fillStyle = "rgba(4, 6, 5, 0.62)";
+  ctx.strokeStyle = "rgba(255, 200, 87, 0.42)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(260, 34, 440, 32, 10);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(255, 95, 79, 0.28)";
+  ctx.fillRect(338, 45, 336, 10);
+  ctx.fillStyle = "#ff5f4f";
+  ctx.fillRect(338, 45, 336 * hpRatio, 10);
+
+  ctx.fillStyle = "#ffc857";
+  ctx.font = "900 14px Trebuchet MS, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(boss.bossRank === "mid" ? "MID BOSS" : "BOSS", 282, 56);
+  ctx.restore();
+}
+
+function drawMidBossEnemy(enemy, scaleX, scaleY) {
+  drawShadow(enemy, scaleX, scaleY);
+  ctx.save();
+  ctx.translate(enemy.x * scaleX, enemy.y * scaleY);
+  ctx.scale(scaleX * enemy.facing, scaleY);
+
+  ctx.fillStyle = enemy.hitFlash > 0 ? "#fff1be" : "#9a4d7a";
+  ctx.beginPath();
+  ctx.roundRect(-34, -52, 68, 82, 17);
+  ctx.fill();
+
+  ctx.fillStyle = "#2b1223";
+  ctx.beginPath();
+  ctx.arc(0, -66, 22, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#f6f0df";
+  ctx.fillRect(7, -70, 6, 5);
+  ctx.fillRect(-13, -70, 6, 5);
+
+  ctx.strokeStyle = enemy.attackActive > 0 ? "#ffc857" : "#321726";
+  ctx.lineWidth = enemy.attackWindup > 0 || enemy.attackActive > 0 ? 10 : 7;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(26, -22);
+  ctx.lineTo(64, -18);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#321726";
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(-18, 26);
+  ctx.lineTo(-28, 44);
+  ctx.moveTo(18, 26);
+  ctx.lineTo(28, 44);
+  ctx.stroke();
+
+  if (enemy.entering) {
+    ctx.strokeStyle = "rgba(255, 200, 87, 0.5)";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-32, -96);
+    ctx.lineTo(32, -96);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  if (enemy.attackWindup > 0) {
+    drawEnemyWindupLabel(enemy, "SMASH", "rgba(255, 200, 87, 0.92)", scaleX, scaleY);
+  }
 }
 
 function drawBikeEnemy(enemy, scaleX, scaleY) {
@@ -2294,6 +2518,7 @@ function render() {
   drawItems(scaleX, scaleY);
   drawEnemies(scaleX, scaleY);
   drawPlayer(scaleX, scaleY);
+  drawBossHud(scaleX, scaleY);
   drawFloatingTexts(scaleX, scaleY);
   drawJoystick(scaleX, scaleY);
   drawAreaTransition(scaleX, scaleY);
