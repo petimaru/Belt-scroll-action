@@ -40,6 +40,13 @@ const SPECIAL_GAUGE = {
   superDamage: 90,
 };
 
+const ENEMY_EDGE_CONTROL = {
+  leftComfortX: 118,
+  rightComfortX: WORLD.width - 132,
+  nudgeSpeed: 72,
+  rangedMoveSpeed: 96,
+};
+
 const COMBO_ATTACKS = [
   { label: "1", damage: 14, cooldown: 0.22, width: 72, height: 50, reach: 48, duration: 0.11, hitStop: 0.18, knockback: 12 },
   { label: "2", damage: 16, cooldown: 0.24, width: 78, height: 54, reach: 52, duration: 0.12, hitStop: 0.2, knockback: 18 },
@@ -310,6 +317,11 @@ function createGunnerEnemy(round = 1, index = 0) {
     shotCooldown: 1.35 + Math.random() * 0.9,
     shotWindup: 0,
     hasQueuedShot: false,
+    shotsFired: 0,
+    shotsBeforeReposition: 1 + Math.floor(Math.random() * 2),
+    repositioning: false,
+    repositionTargetX: 590 + Math.random() * 150,
+    repositionTargetY: clamp(y + (Math.random() - 0.5) * 80, WORLD.floorTop + 52, WORLD.floorBottom - 42),
     hitFlash: 0,
     hitStopTimer: 0,
     knockbackX: 0,
@@ -341,6 +353,11 @@ function createKnifeEnemy(round = 1, index = 0) {
     throwCooldown: 1.2 + Math.random() * 0.7,
     throwWindup: 0,
     hasQueuedKnife: false,
+    shotsFired: 0,
+    shotsBeforeReposition: 1 + Math.floor(Math.random() * 2),
+    repositioning: false,
+    repositionTargetX: 580 + Math.random() * 160,
+    repositionTargetY: clamp(y + (Math.random() - 0.5) * 80, WORLD.floorTop + 52, WORLD.floorBottom - 42),
     hitFlash: 0,
     hitStopTimer: 0,
     knockbackX: 0,
@@ -913,6 +930,8 @@ function updateEnemies(dt) {
       enemy.x += enemy.wanderX * enemy.speed * 0.48 * dt;
       enemy.y += enemy.wanderY * enemy.speed * 0.48 * dt;
     }
+
+    nudgeEnemyFromSideEdges(enemy, dt);
   });
 }
 
@@ -941,9 +960,13 @@ function updateGunnerEnemy(enemy, player, dt) {
   const dx = player.x - enemy.x;
   if (Math.abs(dx) > 4) enemy.facing = dx > 0 ? 1 : -1;
 
+  if (updateRangedReposition(enemy, dt)) return;
+
   if (wasWindingUp && enemy.shotWindup <= 0 && enemy.hasQueuedShot) {
     fireEnemyBullet(enemy, player);
     enemy.hasQueuedShot = false;
+    enemy.shotsFired += 1;
+    maybeStartRangedReposition(enemy);
     enemy.shotCooldown = GUNNER_ENEMY.shotCooldownMin + Math.random() * (GUNNER_ENEMY.shotCooldownMax - GUNNER_ENEMY.shotCooldownMin);
     return;
   }
@@ -998,9 +1021,13 @@ function updateKnifeEnemy(enemy, player, dt) {
   const dx = player.x - enemy.x;
   if (Math.abs(dx) > 4) enemy.facing = dx > 0 ? 1 : -1;
 
+  if (updateRangedReposition(enemy, dt)) return;
+
   if (wasWindingUp && enemy.throwWindup <= 0 && enemy.hasQueuedKnife) {
     throwEnemyKnife(enemy, player);
     enemy.hasQueuedKnife = false;
+    enemy.shotsFired += 1;
+    maybeStartRangedReposition(enemy);
     enemy.throwCooldown = KNIFE_ENEMY.throwCooldownMin + Math.random() * (KNIFE_ENEMY.throwCooldownMax - KNIFE_ENEMY.throwCooldownMin);
     return;
   }
@@ -1011,6 +1038,34 @@ function updateKnifeEnemy(enemy, player, dt) {
     enemy.throwWindup = KNIFE_ENEMY.throwWindup;
     enemy.hasQueuedKnife = true;
   }
+}
+
+function maybeStartRangedReposition(enemy) {
+  if (enemy.repositioning || enemy.shotsFired < enemy.shotsBeforeReposition) return;
+
+  enemy.repositioning = true;
+}
+
+function updateRangedReposition(enemy, dt) {
+  if (!enemy.repositioning) {
+    nudgeEnemyFromSideEdges(enemy, dt, 0.55);
+    return false;
+  }
+
+  const target = { x: enemy.repositionTargetX, y: enemy.repositionTargetY };
+  const toTarget = normalize(target.x - enemy.x, target.y - enemy.y);
+  enemy.x += toTarget.x * ENEMY_EDGE_CONTROL.rangedMoveSpeed * dt;
+  enemy.y += toTarget.y * ENEMY_EDGE_CONTROL.rangedMoveSpeed * 0.72 * dt;
+  enemy.x = clamp(enemy.x, ENEMY_EDGE_CONTROL.leftComfortX, ENEMY_EDGE_CONTROL.rightComfortX);
+  enemy.y = clamp(enemy.y, WORLD.floorTop + 32, WORLD.floorBottom - 30);
+
+  if (Math.abs(target.x - enemy.x) < 8 && Math.abs(target.y - enemy.y) < 8) {
+    enemy.x = target.x;
+    enemy.y = target.y;
+    enemy.repositioning = false;
+  }
+
+  return enemy.repositioning;
 }
 
 function throwEnemyKnife(enemy, player) {
@@ -1201,6 +1256,17 @@ function updateBreakables(dt) {
     breakable.hitFlash = Math.max(0, breakable.hitFlash - dt);
     breakable.wobbleTimer = Math.max(0, breakable.wobbleTimer - dt);
   });
+}
+
+function nudgeEnemyFromSideEdges(enemy, dt, strength = 1) {
+  if (enemy.x < ENEMY_EDGE_CONTROL.leftComfortX) {
+    enemy.x += ENEMY_EDGE_CONTROL.nudgeSpeed * strength * dt;
+  } else if (enemy.x > ENEMY_EDGE_CONTROL.rightComfortX) {
+    enemy.x -= ENEMY_EDGE_CONTROL.nudgeSpeed * strength * dt;
+  }
+
+  enemy.x = clamp(enemy.x, 45, WORLD.width - 45);
+  enemy.y = clamp(enemy.y, WORLD.floorTop + 32, WORLD.floorBottom - 30);
 }
 
 function applyEnemyKnockback(enemy, dt, clampToStage = true) {
@@ -1797,13 +1863,6 @@ function drawGunnerEnemy(enemy, scaleX, scaleY) {
   ctx.fillStyle = "#0d1117";
   ctx.fillRect(48, -24, 18, 8);
 
-  if (enemy.shotWindup > 0) {
-    ctx.fillStyle = "rgba(255, 200, 87, 0.9)";
-    ctx.font = "900 16px Trebuchet MS, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("SHOT", 0, -70);
-  }
-
   const hpWidth = 58;
   const hpRatio = Math.max(0, enemy.hp / enemy.maxHp);
   ctx.fillStyle = "rgba(0, 0, 0, 0.44)";
@@ -1812,6 +1871,10 @@ function drawGunnerEnemy(enemy, scaleX, scaleY) {
   ctx.fillRect(-hpWidth / 2, -58, hpWidth * hpRatio, 7);
 
   ctx.restore();
+
+  if (enemy.shotWindup > 0) {
+    drawEnemyWindupLabel(enemy, "SHOT", "rgba(255, 200, 87, 0.9)", scaleX, scaleY);
+  }
 }
 
 function drawKnifeEnemy(enemy, scaleX, scaleY) {
@@ -1850,13 +1913,6 @@ function drawKnifeEnemy(enemy, scaleX, scaleY) {
   ctx.closePath();
   ctx.fill();
 
-  if (enemy.throwWindup > 0) {
-    ctx.fillStyle = "rgba(121, 215, 255, 0.82)";
-    ctx.font = "900 16px Trebuchet MS, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("THROW", 0, -70);
-  }
-
   const hpWidth = 58;
   const hpRatio = Math.max(0, enemy.hp / enemy.maxHp);
   ctx.fillStyle = "rgba(0, 0, 0, 0.44)";
@@ -1864,6 +1920,20 @@ function drawKnifeEnemy(enemy, scaleX, scaleY) {
   ctx.fillStyle = "#ffcf5a";
   ctx.fillRect(-hpWidth / 2, -58, hpWidth * hpRatio, 7);
 
+  ctx.restore();
+
+  if (enemy.throwWindup > 0) {
+    drawEnemyWindupLabel(enemy, "THROW", "rgba(121, 215, 255, 0.82)", scaleX, scaleY);
+  }
+}
+
+function drawEnemyWindupLabel(enemy, label, color, scaleX, scaleY) {
+  ctx.save();
+  ctx.scale(scaleX, scaleY);
+  ctx.fillStyle = color;
+  ctx.font = "900 16px Trebuchet MS, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(label, enemy.x, enemy.y - 70);
   ctx.restore();
 }
 
