@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
     <title>ベルトスクロールアクションメーカー Prototype</title>
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css?v=52" />
   </head>
   <body>
     <main class="game-shell" aria-label="ベルトスクロールアクションゲーム">
@@ -43,6 +43,27 @@
         <div class="touch-help left">左半分ドラッグ: 移動</div>
         <div class="touch-help right">右半分: タップ攻撃 / 下フリック必殺 / 長押し超必殺 / 上スワイプジャンプ</div>
         <div id="message" class="message" aria-live="polite"></div>
+        <div id="titleOverlay" class="title-overlay" aria-live="polite">
+          <div class="title-panel">
+            <p class="title-kicker">Belt Scroll Action</p>
+            <h1>STREET BREAKER</h1>
+            <div class="difficulty-actions" aria-label="難易度選択">
+              <button class="difficulty-button" type="button" data-difficulty="easy">
+                <span>Easy</span>
+                <small>練習向け</small>
+              </button>
+              <button class="difficulty-button is-selected" type="button" data-difficulty="normal">
+                <span>Normal</span>
+                <small>標準</small>
+              </button>
+              <button class="difficulty-button" type="button" data-difficulty="hard">
+                <span>Hard</span>
+                <small>手強い</small>
+              </button>
+            </div>
+            <div id="debugStartActions" class="debug-start-actions" aria-label="開始地点選択"></div>
+          </div>
+        </div>
         <div id="continueOverlay" class="continue-overlay" aria-live="assertive" hidden>
           <div class="continue-count" id="continueCount">10</div>
           <div class="continue-title">CONTINUE?</div>
@@ -59,6 +80,6 @@
       </footer>
     </main>
 
-    <script src="main.js"></script>
+    <script src="main.js?v=52"></script>
   </body>
 </html>

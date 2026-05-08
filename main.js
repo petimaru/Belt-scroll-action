@@ -8,6 +8,9 @@ const specialBar = document.getElementById("specialBar");
 const specialText = document.getElementById("specialText");
 const scoreText = document.getElementById("scoreText");
 const message = document.getElementById("message");
+const titleOverlay = document.getElementById("titleOverlay");
+const difficultyButtons = [...document.querySelectorAll("[data-difficulty]")];
+const debugStartActions = document.getElementById("debugStartActions");
 const continueOverlay = document.getElementById("continueOverlay");
 const continueCount = document.getElementById("continueCount");
 const continueButton = document.getElementById("continueButton");
@@ -25,6 +28,38 @@ const DIFFICULTY = {
   enemyAttackWindup: 0.46,
   enemyAttackActive: 0.16,
 };
+
+const DIFFICULTY_SETTINGS = {
+  easy: {
+    label: "Easy",
+    enemyHpScale: 0.85,
+    bossHpScale: 0.82,
+    enemyDamageScale: 0.82,
+    enemyAttackCooldownScale: 1.18,
+    attackWindupScales: [1.12],
+    bossFrontGuardReaction: false,
+  },
+  normal: {
+    label: "Normal",
+    enemyHpScale: 1,
+    bossHpScale: 1,
+    enemyDamageScale: 1,
+    enemyAttackCooldownScale: 1,
+    attackWindupScales: [1],
+    bossFrontGuardReaction: true,
+  },
+  hard: {
+    label: "Hard",
+    enemyHpScale: 1.18,
+    bossHpScale: 1.25,
+    enemyDamageScale: 1.16,
+    enemyAttackCooldownScale: 0.92,
+    attackWindupScales: [0.62, 1.36, 0.86, 1.14],
+    bossFrontGuardReaction: true,
+  },
+};
+
+let currentDifficultyKey = "normal";
 
 const INITIAL_LIVES = 3;
 const MAX_LIVES = 5;
@@ -139,9 +174,34 @@ const MID_BOSS_ENEMY = {
   jumpActive: 0.9,
   jumpHeight: 132,
   jumpImpactRadius: 112,
+  knifeRangeMin: 120,
+  knifeRangeMax: 420,
+  knifeWindup: 0.58,
+  knifeActive: 0.12,
+  knifeSpeed: 340,
+  knifeDamage: 14,
 };
 
-const BOSS_TYPES = new Set(["mid_boss_brawler"]);
+const MAJOR_BOSS_ENEMY = {
+  hp: 760,
+  radius: 52,
+  visualScale: 1.28,
+  speed: 48,
+  damage: 24,
+  attackRangeX: 108,
+  attackRangeY: 72,
+  guardCooldown: 3.5,
+};
+
+const BOSS_TYPES = new Set(["mid_boss_brawler", "major_boss_brawler"]);
+
+const BOSS_SCHEDULE = [
+  { area: 5, rank: "mid", variant: "charge", debugLabel: "中ボスA" },
+  { area: 10, rank: "mid", variant: "shock", debugLabel: "中ボスB" },
+  { area: 15, rank: "mid", variant: "jump", debugLabel: "中ボスC" },
+  { area: 20, rank: "major", variant: "all", debugLabel: "大ボス" },
+  { area: 25, rank: "mid", variant: "knife", debugLabel: "中ボスD" },
+];
 
 const ITEM_TYPES = {
   onigiri: { icon: "🍙", heal: 10, label: "+10 HP" },
@@ -234,6 +294,7 @@ const input = {
 
 const state = {
   lastTime: performance.now(),
+  gameStarted: false,
   score: 0,
   area: 1,
   wave: 1,
@@ -254,6 +315,41 @@ const state = {
   breakables: [],
   floatingTexts: [],
 };
+
+function getCurrentDifficulty() {
+  return DIFFICULTY_SETTINGS[currentDifficultyKey] ?? DIFFICULTY_SETTINGS.normal;
+}
+
+function scaleEnemyHp(value) {
+  return Math.round(value * getCurrentDifficulty().enemyHpScale);
+}
+
+function scaleBossHp(value) {
+  return Math.round(value * getCurrentDifficulty().bossHpScale);
+}
+
+function scaleEnemyDamage(value) {
+  return Math.max(1, Math.round(value * getCurrentDifficulty().enemyDamageScale));
+}
+
+function getEnemyAttackCooldown() {
+  return DIFFICULTY.enemyAttackCooldown * getCurrentDifficulty().enemyAttackCooldownScale;
+}
+
+function getAttackWindup(baseWindup, enemy) {
+  const pattern = getCurrentDifficulty().attackWindupScales;
+  if (!pattern || pattern.length === 0) return baseWindup;
+  if (pattern.length === 1) return baseWindup * pattern[0];
+
+  if (!enemy.hasWindupPatternStarted) {
+    enemy.windupPatternIndex = Math.floor(Math.random() * pattern.length);
+    enemy.hasWindupPatternStarted = true;
+  }
+
+  const scale = pattern[enemy.windupPatternIndex % pattern.length];
+  enemy.windupPatternIndex += 1;
+  return baseWindup * scale;
+}
 
 function createPlayer() {
   return {
@@ -294,6 +390,7 @@ function createEnemy(round = 1, index = 0) {
   const dropX = 310 + Math.random() * 330;
   const entryX = dropsIn ? dropX : fromRight ? WORLD.width - 115 - index * 34 : 115 + index * 34;
   const entryY = baseY;
+  const maxHp = scaleEnemyHp(40 + Math.min(round * 5, 35));
   return {
     type: "slow_puncher",
     name: "ゆっくり近づく敵",
@@ -304,16 +401,17 @@ function createEnemy(round = 1, index = 0) {
     entryMode: dropsIn ? "drop" : "side",
     entering: true,
     radius: 25,
-    hp: 40 + Math.min(round * 5, 35),
-    maxHp: 40 + Math.min(round * 5, 35),
+    hp: maxHp,
+    maxHp,
     speed: 76 + Math.min(round * 3, 30),
-    damage: 10,
+    damage: scaleEnemyDamage(10),
     attackRangeX: 62,
     attackRangeY: 42,
     chaseRange: 300,
     attackCooldown: 0,
     attackWindup: 0,
     attackActive: 0,
+    windupPatternIndex: 0,
     hasDamagedThisSwing: false,
     facing: fromRight ? -1 : 1,
     wanderTimer: 0,
@@ -332,6 +430,7 @@ function createGunnerEnemy(round = 1, index = 0) {
   const laneHeight = WORLD.floorBottom - WORLD.floorTop - 120;
   const y = WORLD.floorTop + 72 + ((Math.random() * laneHeight + index * 42) % laneHeight);
   const dropX = 420 + Math.random() * 260;
+  const maxHp = scaleEnemyHp(GUNNER_ENEMY.hp + Math.min(round * 4, 22));
   return {
     type: "gunner",
     name: "銃手",
@@ -342,13 +441,14 @@ function createGunnerEnemy(round = 1, index = 0) {
     entryMode: dropsIn ? "drop" : "side",
     entering: true,
     radius: GUNNER_ENEMY.radius,
-    hp: GUNNER_ENEMY.hp + Math.min(round * 4, 22),
-    maxHp: GUNNER_ENEMY.hp + Math.min(round * 4, 22),
+    hp: maxHp,
+    maxHp,
     speed: 78,
-    damage: GUNNER_ENEMY.bulletDamage,
+    damage: scaleEnemyDamage(GUNNER_ENEMY.bulletDamage),
     facing: fromRight ? -1 : 1,
     shotCooldown: 1.35 + Math.random() * 0.9,
     shotWindup: 0,
+    windupPatternIndex: 0,
     hasQueuedShot: false,
     shotsFired: 0,
     shotsBeforeReposition: 1 + Math.floor(Math.random() * 2),
@@ -368,6 +468,7 @@ function createKnifeEnemy(round = 1, index = 0) {
   const laneHeight = WORLD.floorBottom - WORLD.floorTop - 120;
   const y = WORLD.floorTop + 72 + ((Math.random() * laneHeight + index * 48) % laneHeight);
   const dropX = 390 + Math.random() * 300;
+  const maxHp = scaleEnemyHp(KNIFE_ENEMY.hp + Math.min(round * 4, 24));
   return {
     type: "knife_thrower",
     name: "ナイフ投げ敵",
@@ -378,13 +479,14 @@ function createKnifeEnemy(round = 1, index = 0) {
     entryMode: dropsIn ? "drop" : "side",
     entering: true,
     radius: KNIFE_ENEMY.radius,
-    hp: KNIFE_ENEMY.hp + Math.min(round * 4, 24),
-    maxHp: KNIFE_ENEMY.hp + Math.min(round * 4, 24),
+    hp: maxHp,
+    maxHp,
     speed: 86,
-    damage: KNIFE_ENEMY.knifeDamage,
+    damage: scaleEnemyDamage(KNIFE_ENEMY.knifeDamage),
     facing: fromRight ? -1 : 1,
     throwCooldown: 1.2 + Math.random() * 0.7,
     throwWindup: 0,
+    windupPatternIndex: 0,
     hasQueuedKnife: false,
     shotsFired: 0,
     shotsBeforeReposition: 1 + Math.floor(Math.random() * 2),
@@ -400,7 +502,7 @@ function createKnifeEnemy(round = 1, index = 0) {
 
 function createMidBossEnemy(round = 1) {
   const y = WORLD.floorTop + 182;
-  const maxHp = MID_BOSS_ENEMY.hp + Math.min(round * 18, 180);
+  const maxHp = scaleBossHp(MID_BOSS_ENEMY.hp + Math.min(round * 18, 180));
   const variant = getMidBossVariant(round);
   return {
     type: "mid_boss_brawler",
@@ -417,7 +519,7 @@ function createMidBossEnemy(round = 1) {
     hp: maxHp,
     maxHp,
     speed: MID_BOSS_ENEMY.speed + Math.min(round * 2, 24),
-    damage: MID_BOSS_ENEMY.damage + Math.min(Math.floor(round / 5) * 4, 12),
+    damage: scaleEnemyDamage(MID_BOSS_ENEMY.damage + Math.min(Math.floor(round / 5) * 4, 12)),
     attackRangeX: MID_BOSS_ENEMY.attackRangeX,
     attackRangeY: MID_BOSS_ENEMY.attackRangeY,
     chaseRange: 430,
@@ -425,6 +527,7 @@ function createMidBossEnemy(round = 1) {
     attackWindup: 0,
     attackActive: 0,
     attackType: null,
+    windupPatternIndex: 0,
     lockedFacing: null,
     attackTargetX: null,
     attackTargetY: null,
@@ -446,26 +549,74 @@ function createMidBossEnemy(round = 1) {
   };
 }
 
+function createMajorBossEnemy(round = 1) {
+  const y = WORLD.floorTop + 178;
+  const maxHp = scaleBossHp(MAJOR_BOSS_ENEMY.hp + Math.min(round * 22, 260));
+  return {
+    type: "major_boss_brawler",
+    bossRank: "major",
+    bossVariant: "all",
+    name: "大ボス",
+    x: WORLD.width + 126,
+    y,
+    entryX: 655,
+    entryY: y,
+    entryMode: "side",
+    entering: true,
+    radius: MAJOR_BOSS_ENEMY.radius,
+    visualScale: MAJOR_BOSS_ENEMY.visualScale,
+    hp: maxHp,
+    maxHp,
+    speed: MAJOR_BOSS_ENEMY.speed + Math.min(round, 18),
+    damage: scaleEnemyDamage(MAJOR_BOSS_ENEMY.damage + Math.min(Math.floor(round / 10) * 4, 12)),
+    attackRangeX: MAJOR_BOSS_ENEMY.attackRangeX,
+    attackRangeY: MAJOR_BOSS_ENEMY.attackRangeY,
+    chaseRange: 520,
+    attackCooldown: 1.2,
+    attackWindup: 0,
+    attackActive: 0,
+    attackType: null,
+    windupPatternIndex: 0,
+    lockedFacing: null,
+    attackTargetX: null,
+    attackTargetY: null,
+    attackStartX: null,
+    attackStartY: null,
+    attackLanded: false,
+    visualJumpHeight: 0,
+    guardTimer: 0,
+    guardCooldown: 1.0,
+    hasDamagedThisSwing: false,
+    facing: -1,
+    wanderTimer: 0,
+    wanderX: -0.35,
+    wanderY: 0,
+    hitFlash: 0,
+    hitStopTimer: 0,
+    knockbackX: 0,
+    knockbackY: 0,
+  };
+}
+
 function getMidBossVariant(round) {
-  const variants = ["charge", "shock", "jump"];
-  const bossIndex = Math.max(0, Math.floor(round / 5) - 1);
-  return variants[bossIndex % variants.length];
+  return getBossScheduleEntry(round)?.variant ?? "charge";
 }
 
 function createBikeEnemy(round = 1, index = 0) {
   const fromRight = Math.random() > 0.5;
   const laneHeight = WORLD.floorBottom - WORLD.floorTop - 120;
   const y = WORLD.floorTop + 72 + Math.random() * laneHeight;
+  const maxHp = scaleEnemyHp(BIKE_ENEMY.hp + Math.min(round * 3, 18));
   return {
     type: "bike_rusher",
     name: "バイク敵",
     x: fromRight ? WORLD.width - BIKE_ENEMY.halfVisibleOffset : BIKE_ENEMY.halfVisibleOffset,
     y,
     radius: BIKE_ENEMY.radius,
-    hp: BIKE_ENEMY.hp + Math.min(round * 3, 18),
-    maxHp: BIKE_ENEMY.hp + Math.min(round * 3, 18),
+    hp: maxHp,
+    maxHp,
     speed: BIKE_ENEMY.speed + Math.min(round * 12, 90),
-    damage: BIKE_ENEMY.damage,
+    damage: scaleEnemyDamage(BIKE_ENEMY.damage),
     facing: fromRight ? -1 : 1,
     warningTimer: BIKE_ENEMY.warningTime,
     hasDamagedThisRush: false,
@@ -494,10 +645,11 @@ function createBreakable(type, x, y) {
   };
 }
 
-function resetRun(keepScore = false) {
+function resetRun(keepScore = false, startArea = 1) {
+  state.gameStarted = true;
   state.player = createPlayer();
-  state.area = 1;
-  state.wave = 1;
+  state.area = startArea;
+  state.wave = startArea;
   state.exitGateOpen = false;
   state.areaTransitionTimer = 0;
   state.superFlashTimer = 0;
@@ -513,12 +665,53 @@ function resetRun(keepScore = false) {
   state.lives = INITIAL_LIVES;
   if (!keepScore) state.score = 0;
   updateContinueOverlay();
-  showMessage("Ready?", 800);
+  updateTitleOverlay();
+  showMessage(`${getCurrentDifficulty().label} Area ${startArea}`, 900);
+}
+
+function selectDifficulty(difficultyKey = currentDifficultyKey) {
+  if (DIFFICULTY_SETTINGS[difficultyKey]) currentDifficultyKey = difficultyKey;
+  updateTitleOverlay();
+}
+
+function startGame(startArea = 1) {
+  clearAllInput();
+  resetRun(false, startArea);
+}
+
+function updateTitleOverlay() {
+  titleOverlay.hidden = state.gameStarted;
+  difficultyButtons.forEach((button) => {
+    button.classList.toggle("is-selected", button.dataset.difficulty === currentDifficultyKey);
+  });
+}
+
+function buildDebugStartButtons() {
+  debugStartActions.replaceChildren();
+
+  const startOptions = [{ area: 1, debugLabel: "通常プレイ", primary: true }, ...BOSS_SCHEDULE];
+  startOptions.forEach((option) => {
+    const button = document.createElement("button");
+    button.className = `start-button${option.primary ? " primary" : ""}`;
+    button.type = "button";
+    button.textContent = option.debugLabel;
+    button.addEventListener("click", () => startGame(option.area));
+    debugStartActions.append(button);
+  });
 }
 
 function spawnWave(preserveEventEnemies = false) {
   state.exitGateOpen = false;
-  if (isMidBossRound(state.wave)) {
+  const bossSchedule = getBossScheduleEntry(state.wave);
+  if (bossSchedule?.rank === "major") {
+    state.enemies = [createMajorBossEnemy(state.wave)];
+    state.breakables = createBreakablesForWave(state.wave);
+    state.bikeSpawnTimer = null;
+    state.bikeSpawnsRemaining = 0;
+    return;
+  }
+
+  if (bossSchedule?.rank === "mid") {
     state.enemies = [createMidBossEnemy(state.wave)];
     state.breakables = createBreakablesForWave(state.wave);
     state.bikeSpawnTimer = null;
@@ -534,8 +727,8 @@ function spawnWave(preserveEventEnemies = false) {
   scheduleBikeSpawnsForWave();
 }
 
-function isMidBossRound(round) {
-  return round > 0 && round % 5 === 0;
+function getBossScheduleEntry(round) {
+  return BOSS_SCHEDULE.find((entry) => entry.area === round) ?? null;
 }
 
 function isBossEnemy(enemy) {
@@ -957,7 +1150,7 @@ function updateEnemies(dt) {
       return;
     }
 
-    if (enemy.type === "mid_boss_brawler") {
+    if (isBossEnemy(enemy)) {
       updateMidBossEnemy(enemy, player, dt);
       return;
     }
@@ -1017,9 +1210,9 @@ function updateEnemies(dt) {
     if (enemy.attackWindup > 0) return;
 
     if (inMeleeRange && enemy.attackCooldown <= 0) {
-      enemy.attackWindup = DIFFICULTY.enemyAttackWindup;
+      enemy.attackWindup = getAttackWindup(DIFFICULTY.enemyAttackWindup, enemy);
       enemy.attackActive = 0;
-      enemy.attackCooldown = DIFFICULTY.enemyAttackCooldown + Math.random() * 0.45;
+      enemy.attackCooldown = getEnemyAttackCooldown() + Math.random() * 0.45;
       enemy.hasDamagedThisSwing = false;
       return;
     }
@@ -1082,7 +1275,7 @@ function updateGunnerEnemy(enemy, player, dt) {
   if (enemy.shotWindup > 0) return;
 
   if (enemy.shotCooldown <= 0) {
-    enemy.shotWindup = GUNNER_ENEMY.shotWindup;
+    enemy.shotWindup = getAttackWindup(GUNNER_ENEMY.shotWindup, enemy);
     enemy.hasQueuedShot = true;
   }
 }
@@ -1125,16 +1318,25 @@ function updateMidBossEnemy(enemy, player, dt) {
   const toPlayer = normalize(dx, dy);
   const gap = distance(player, enemy);
   const inMeleeRange = Math.abs(dx) <= enemy.attackRangeX && Math.abs(dy) <= enemy.attackRangeY;
+  const canCharge = canBossUseAttack(enemy, "charge");
+  const canShock = canBossUseAttack(enemy, "shock");
+  const canJump = canBossUseAttack(enemy, "jump");
+  const canKnife = canBossUseAttack(enemy, "knife");
   const inChargeRange =
-    enemy.bossVariant === "charge" &&
+    canCharge &&
     Math.abs(dx) >= MID_BOSS_ENEMY.chargeRangeMin &&
     Math.abs(dx) <= MID_BOSS_ENEMY.chargeRangeMax &&
     Math.abs(dy) <= enemy.attackRangeY * 1.15;
-  const inShockRange = enemy.bossVariant === "shock" && gap <= MID_BOSS_ENEMY.shockRadius * 0.95;
+  const inShockRange = canShock && gap <= MID_BOSS_ENEMY.shockRadius * 0.95;
   const inJumpRange =
-    enemy.bossVariant === "jump" &&
+    canJump &&
     gap >= MID_BOSS_ENEMY.jumpRangeMin &&
     gap <= MID_BOSS_ENEMY.jumpRangeMax;
+  const inKnifeRange =
+    canKnife &&
+    gap >= MID_BOSS_ENEMY.knifeRangeMin &&
+    gap <= MID_BOSS_ENEMY.knifeRangeMax &&
+    Math.abs(dy) <= enemy.attackRangeY * 1.8;
 
   if (enemy.lockedFacing !== null) {
     enemy.facing = enemy.lockedFacing;
@@ -1167,19 +1369,12 @@ function updateMidBossEnemy(enemy, player, dt) {
     return;
   }
 
-  if (inShockRange && enemy.attackCooldown <= 0) {
-    startMidBossAttack(enemy, "shock", player);
-    return;
-  }
-
-  if (inChargeRange && enemy.attackCooldown <= 0) {
-    startMidBossAttack(enemy, "charge", player);
-    return;
-  }
-
-  if (inJumpRange && enemy.attackCooldown <= 0) {
-    startMidBossAttack(enemy, "jump", player);
-    return;
+  if (enemy.attackCooldown <= 0) {
+    const bossAttackType = chooseBossAttackType(enemy, { inShockRange, inChargeRange, inJumpRange, inKnifeRange, inMeleeRange });
+    if (bossAttackType) {
+      startMidBossAttack(enemy, bossAttackType, player);
+      return;
+    }
   }
 
   if (inMeleeRange && enemy.attackCooldown <= 0) {
@@ -1192,19 +1387,46 @@ function updateMidBossEnemy(enemy, player, dt) {
   nudgeEnemyFromSideEdges(enemy, dt, 0.35);
 }
 
+function canBossUseAttack(enemy, attackType) {
+  return enemy.bossVariant === "all" || enemy.bossVariant === attackType;
+}
+
+function chooseBossAttackType(enemy, ranges) {
+  if (enemy.bossVariant !== "all") {
+    if (ranges.inShockRange) return "shock";
+    if (ranges.inChargeRange) return "charge";
+    if (ranges.inJumpRange) return "jump";
+    if (ranges.inKnifeRange) return "knife";
+    return null;
+  }
+
+  const candidates = [];
+  if (ranges.inShockRange) candidates.push("shock");
+  if (ranges.inChargeRange) candidates.push("charge");
+  if (ranges.inJumpRange) candidates.push("jump");
+  if (ranges.inKnifeRange) candidates.push("knife");
+  if (ranges.inMeleeRange) candidates.push("smash");
+  if (candidates.length === 0) return null;
+
+  const lastIndex = candidates.indexOf(enemy.lastAttackType);
+  if (lastIndex < 0) return candidates[0];
+  return candidates[(lastIndex + 1) % candidates.length];
+}
+
 function startMidBossGuard(enemy) {
   enemy.lockedFacing = enemy.facing;
   enemy.attackType = "guard";
   enemy.attackWindup = 0;
   enemy.attackActive = 0;
   enemy.guardTimer = MID_BOSS_ENEMY.guardDuration;
-  enemy.guardCooldown = MID_BOSS_ENEMY.guardCooldown;
+  enemy.guardCooldown = enemy.bossRank === "major" ? MAJOR_BOSS_ENEMY.guardCooldown : MID_BOSS_ENEMY.guardCooldown;
   enemy.hasDamagedThisSwing = false;
 }
 
 function startMidBossAttack(enemy, attackType, player) {
   enemy.lockedFacing = enemy.facing;
   enemy.attackType = attackType;
+  enemy.lastAttackType = attackType;
   enemy.attackActive = 0;
   enemy.hasDamagedThisSwing = false;
   enemy.attackStartX = enemy.x;
@@ -1213,13 +1435,13 @@ function startMidBossAttack(enemy, attackType, player) {
   enemy.visualJumpHeight = 0;
 
   if (attackType === "charge") {
-    enemy.attackWindup = MID_BOSS_ENEMY.chargeWindup;
+    enemy.attackWindup = getAttackWindup(MID_BOSS_ENEMY.chargeWindup, enemy);
     enemy.attackCooldown = MID_BOSS_ENEMY.attackCooldown + 0.55 + Math.random() * 0.55;
     return;
   }
 
   if (attackType === "shock") {
-    enemy.attackWindup = MID_BOSS_ENEMY.shockWindup;
+    enemy.attackWindup = getAttackWindup(MID_BOSS_ENEMY.shockWindup, enemy);
     enemy.attackCooldown = MID_BOSS_ENEMY.attackCooldown + 0.85 + Math.random() * 0.45;
     return;
   }
@@ -1227,12 +1449,20 @@ function startMidBossAttack(enemy, attackType, player) {
   if (attackType === "jump") {
     enemy.attackTargetX = clamp(player.x, 130, WORLD.width - 130);
     enemy.attackTargetY = clamp(player.y, WORLD.floorTop + 52, WORLD.floorBottom - 46);
-    enemy.attackWindup = MID_BOSS_ENEMY.jumpWindup;
+    enemy.attackWindup = getAttackWindup(MID_BOSS_ENEMY.jumpWindup, enemy);
     enemy.attackCooldown = MID_BOSS_ENEMY.attackCooldown + 1.1 + Math.random() * 0.55;
     return;
   }
 
-  enemy.attackWindup = MID_BOSS_ENEMY.attackWindup;
+  if (attackType === "knife") {
+    enemy.attackTargetX = player.x;
+    enemy.attackTargetY = player.y - getPlayerJumpHeight(player) * 0.35;
+    enemy.attackWindup = getAttackWindup(MID_BOSS_ENEMY.knifeWindup, enemy);
+    enemy.attackCooldown = MID_BOSS_ENEMY.attackCooldown + 0.72 + Math.random() * 0.45;
+    return;
+  }
+
+  enemy.attackWindup = getAttackWindup(MID_BOSS_ENEMY.attackWindup, enemy);
   enemy.attackCooldown = MID_BOSS_ENEMY.attackCooldown + Math.random() * 0.45;
 }
 
@@ -1251,6 +1481,11 @@ function beginMidBossActiveAttack(enemy) {
     enemy.attackActive = MID_BOSS_ENEMY.jumpActive;
     enemy.attackStartX = enemy.x;
     enemy.attackStartY = enemy.y;
+    return;
+  }
+
+  if (enemy.attackType === "knife") {
+    enemy.attackActive = MID_BOSS_ENEMY.knifeActive;
     return;
   }
 
@@ -1275,7 +1510,50 @@ function applyMidBossActiveAttack(enemy, player, dt) {
     return;
   }
 
+  if (enemy.attackType === "knife") {
+    throwBossKnives(enemy);
+    return;
+  }
+
   applyEnemyAttack(enemy, player);
+}
+
+function throwBossKnives(enemy) {
+  if (enemy.attackLanded) return;
+
+  enemy.attackLanded = true;
+  const knifeCount = enemy.bossRank === "major" ? getMajorBossKnifeCount() : 3;
+  const spreadStep = knifeCount <= 3 ? 0.16 : 0.12;
+  const startOffset = -((knifeCount - 1) * spreadStep) / 2;
+  const targetX = enemy.attackTargetX ?? state.player.x;
+  const targetY = enemy.attackTargetY ?? state.player.y;
+  const baseDirection = normalize(targetX - enemy.x, targetY - enemy.y);
+  const baseAngle = Math.atan2(baseDirection.y, baseDirection.x);
+
+  for (let index = 0; index < knifeCount; index += 1) {
+    const angle = baseAngle + startOffset + spreadStep * index;
+    const speed = MID_BOSS_ENEMY.knifeSpeed * (currentDifficultyKey === "hard" ? 1.08 : 1);
+    state.projectiles.push({
+      type: "enemy_knife",
+      x: enemy.x + enemy.facing * 42,
+      y: enemy.y - 22,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      radius: 10,
+      damage: scaleEnemyDamage(MID_BOSS_ENEMY.knifeDamage),
+      age: 0,
+      spin: angle,
+      active: true,
+    });
+  }
+
+  addFloatingText(enemy.x, enemy.y - 96, "KNIVES!", "#79d7ff");
+}
+
+function getMajorBossKnifeCount() {
+  if (currentDifficultyKey === "easy") return 3;
+  if (currentDifficultyKey === "hard") return 7;
+  return 5;
 }
 
 function updateMidBossJumpPress(enemy, player) {
@@ -1325,7 +1603,7 @@ function fireEnemyBullet(enemy, player) {
     vx: direction.x * GUNNER_ENEMY.bulletSpeed,
     vy: direction.y * GUNNER_ENEMY.bulletSpeed,
     radius: 7,
-    damage: GUNNER_ENEMY.bulletDamage,
+    damage: enemy.damage,
     age: 0,
     spin: 0,
     active: true,
@@ -1371,7 +1649,7 @@ function updateKnifeEnemy(enemy, player, dt) {
   if (enemy.throwWindup > 0) return;
 
   if (enemy.throwCooldown <= 0) {
-    enemy.throwWindup = KNIFE_ENEMY.throwWindup;
+    enemy.throwWindup = getAttackWindup(KNIFE_ENEMY.throwWindup, enemy);
     enemy.hasQueuedKnife = true;
   }
 }
@@ -1414,7 +1692,7 @@ function throwEnemyKnife(enemy, player) {
     vx: direction.x * KNIFE_ENEMY.knifeSpeed,
     vy: direction.y * KNIFE_ENEMY.knifeSpeed,
     radius: 10,
-    damage: KNIFE_ENEMY.knifeDamage,
+    damage: enemy.damage,
     age: 0,
     spin: 0,
     active: true,
@@ -1722,6 +2000,7 @@ function damageEnemy(enemy, damage, options = {}) {
   enemy.knockbackX = (options.knockbackX ?? 0) * knockbackScale;
   enemy.knockbackY = (options.knockbackY ?? 0) * knockbackScale;
   state.score += options.score ?? 25;
+  maybeStartBossGuardReaction(enemy, bossDefense);
   return bossDefense;
 }
 
@@ -1729,17 +2008,29 @@ function getBossDefenseResult(enemy, damage, options = {}) {
   if (!options.useBossDefense || !isBossEnemy(enemy) || typeof options.sourceX !== "number") {
     return { damage, type: "normal" };
   }
-  if (enemy.guardTimer <= 0) return { damage, type: "normal" };
 
   const sideFromBoss = Math.sign(options.sourceX - enemy.x);
   if (sideFromBoss === 0) return { damage, type: "normal" };
 
   const isFrontHit = sideFromBoss === enemy.facing;
+  if (enemy.guardTimer <= 0) {
+    return { damage, type: "normal", hitFromFront: isFrontHit };
+  }
+
   const scale = isFrontHit ? MID_BOSS_ENEMY.frontGuardDamageScale : MID_BOSS_ENEMY.backWeakDamageScale;
   return {
     damage: Math.max(1, Math.round(damage * scale)),
     type: isFrontHit ? "guard" : "back",
+    hitFromFront: isFrontHit,
   };
+}
+
+function maybeStartBossGuardReaction(enemy, bossDefense) {
+  if (!getCurrentDifficulty().bossFrontGuardReaction) return;
+  if (!bossDefense.hitFromFront || enemy.hp <= 0) return;
+  if (enemy.guardTimer > 0 || enemy.attackWindup > 0 || enemy.attackActive > 0) return;
+
+  startMidBossGuard(enemy);
 }
 
 function updateAttacks(dt) {
@@ -1873,6 +2164,11 @@ function enterNextArea() {
 }
 
 function update(dt) {
+  if (!state.gameStarted) {
+    updateHud();
+    return;
+  }
+
   if (state.continueActive) {
     updateContinue(dt);
     updateFloatingTexts(dt);
@@ -2155,7 +2451,7 @@ function drawEnemies(scaleX, scaleY) {
       return;
     }
 
-    if (enemy.type === "mid_boss_brawler") {
+    if (isBossEnemy(enemy)) {
       drawMidBossEnemy(enemy, scaleX, scaleY);
       return;
     }
@@ -2333,34 +2629,41 @@ function drawBossHud(scaleX, scaleY) {
   if (!boss) return;
 
   const hpRatio = Math.max(0, boss.hp / boss.maxHp);
+  const isMajorBoss = boss.bossRank === "major";
+  const barX = isMajorBoss ? 218 : 260;
+  const barY = isMajorBoss ? 30 : 34;
+  const barWidth = isMajorBoss ? 524 : 440;
+  const fillX = isMajorBoss ? 326 : 338;
+  const fillWidth = isMajorBoss ? 382 : 336;
   ctx.save();
   ctx.scale(scaleX, scaleY);
   ctx.fillStyle = "rgba(4, 6, 5, 0.62)";
-  ctx.strokeStyle = "rgba(255, 200, 87, 0.42)";
+  ctx.strokeStyle = isMajorBoss ? "rgba(255, 95, 79, 0.62)" : "rgba(255, 200, 87, 0.42)";
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.roundRect(260, 34, 440, 32, 10);
+  ctx.roundRect(barX, barY, barWidth, 34, 10);
   ctx.fill();
   ctx.stroke();
 
-  ctx.fillStyle = "rgba(255, 95, 79, 0.28)";
-  ctx.fillRect(338, 45, 336, 10);
-  ctx.fillStyle = "#ff5f4f";
-  ctx.fillRect(338, 45, 336 * hpRatio, 10);
+  ctx.fillStyle = isMajorBoss ? "rgba(255, 200, 87, 0.24)" : "rgba(255, 95, 79, 0.28)";
+  ctx.fillRect(fillX, barY + 12, fillWidth, 11);
+  ctx.fillStyle = isMajorBoss ? "#ffc857" : "#ff5f4f";
+  ctx.fillRect(fillX, barY + 12, fillWidth * hpRatio, 11);
 
-  ctx.fillStyle = "#ffc857";
+  ctx.fillStyle = isMajorBoss ? "#ff8068" : "#ffc857";
   ctx.font = "900 14px Trebuchet MS, sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText(boss.bossRank === "mid" ? "MID BOSS" : "BOSS", 282, 56);
+  ctx.fillText(isMajorBoss ? "BOSS" : "MID BOSS", barX + 22, barY + 23);
   ctx.restore();
 }
 
 function drawMidBossEnemy(enemy, scaleX, scaleY) {
+  const visualScale = enemy.visualScale ?? 1;
   drawMidBossWarning(enemy, scaleX, scaleY);
   drawShadow(enemy, scaleX, scaleY);
   ctx.save();
   ctx.translate(enemy.x * scaleX, (enemy.y - enemy.visualJumpHeight) * scaleY);
-  ctx.scale(scaleX * enemy.facing, scaleY);
+  ctx.scale(scaleX * enemy.facing * visualScale, scaleY * visualScale);
 
   ctx.fillStyle = enemy.hitFlash > 0 ? "#fff1be" : getMidBossBodyColor(enemy);
   ctx.beginPath();
@@ -2433,8 +2736,10 @@ function drawMidBossEnemy(enemy, scaleX, scaleY) {
 }
 
 function getMidBossBodyColor(enemy) {
+  if (enemy.bossRank === "major") return "#6f2e3f";
   if (enemy.bossVariant === "shock") return "#5f8d69";
   if (enemy.bossVariant === "jump") return "#b26052";
+  if (enemy.bossVariant === "knife") return "#4f6f8d";
   return "#9a4d7a";
 }
 
@@ -2442,6 +2747,7 @@ function getMidBossAttackLabel(enemy) {
   if (enemy.attackType === "charge") return "CHARGE";
   if (enemy.attackType === "shock") return "SHOCK";
   if (enemy.attackType === "jump") return "JUMP";
+  if (enemy.attackType === "knife") return "KNIFE";
   return "SMASH";
 }
 
@@ -2449,6 +2755,7 @@ function getMidBossAttackLabelColor(enemy) {
   if (enemy.attackType === "charge") return "rgba(121, 215, 255, 0.92)";
   if (enemy.attackType === "shock") return "rgba(119, 223, 116, 0.92)";
   if (enemy.attackType === "jump") return "rgba(255, 200, 87, 0.94)";
+  if (enemy.attackType === "knife") return "rgba(233, 249, 255, 0.92)";
   return "rgba(255, 200, 87, 0.92)";
 }
 
@@ -2884,6 +3191,23 @@ function preventBrowserZoomGestures() {
 }
 
 window.addEventListener("keydown", (event) => {
+  if (!state.gameStarted) {
+    if (event.code === "Digit1") {
+      event.preventDefault();
+      selectDifficulty("easy");
+    } else if (event.code === "Digit2") {
+      event.preventDefault();
+      selectDifficulty("normal");
+    } else if (event.code === "Digit3") {
+      event.preventDefault();
+      selectDifficulty("hard");
+    } else if (event.code === "Space" || event.code === "Enter") {
+      event.preventDefault();
+      startGame(1);
+    }
+    return;
+  }
+
   if (state.continueActive) {
     if (event.code === "Space" || event.code === "Enter") {
       event.preventDefault();
@@ -2978,6 +3302,7 @@ function updateActionHold(dt) {
 }
 
 canvas.addEventListener("pointerdown", (event) => {
+  if (!state.gameStarted) return;
   if (state.continueActive) return;
 
   safelySetPointerCapture(event.pointerId);
@@ -3077,6 +3402,9 @@ document.addEventListener("touchcancel", clearPointerInput, { passive: true });
 
 continueButton.addEventListener("click", acceptContinue);
 giveUpButton.addEventListener("click", giveUpContinue);
+difficultyButtons.forEach((button) => {
+  button.addEventListener("click", () => selectDifficulty(button.dataset.difficulty));
+});
 
 function maybeTriggerActionSwipe() {
   if (!input.actionStart || !input.actionCurrent) return false;
@@ -3117,5 +3445,7 @@ canvas.addEventListener("contextmenu", (event) => event.preventDefault());
 
 resizeCanvas();
 preventBrowserZoomGestures();
-resetRun(false);
+buildDebugStartButtons();
+updateTitleOverlay();
+updateHud();
 requestAnimationFrame(loop);
