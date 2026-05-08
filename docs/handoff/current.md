@@ -17,7 +17,7 @@ Start the next chat with:
 - Branch: `main`
 - Latest pushed gameplay commit before this handoff file: `f768947 Add boss debug starts and schedule`
 - Local server command for iPhone testing: `python3 -m http.server 4174 --bind 0.0.0.0`
-- Current iPhone test URL at the time of writing: `http://192.168.0.49:4174/?v=52`
+- Current iPhone test URL at the time of writing: `http://192.168.0.49:4174/?v=55`
 - Known untracked folders:
   - `.playwright-cli/`
   - `output/`
@@ -26,7 +26,7 @@ Start the next chat with:
 ## Important Working Rules
 
 - Do not use Playwright unless the user explicitly says to use Playwright.
-- For iPhone testing, update the URL cache buster such as `?v=53` when `index.html`, `main.js`, or `style.css` changes.
+- For iPhone testing, update the URL cache buster such as `?v=55` when `index.html`, `main.js`, or `style.css` changes.
 - If `index.html` references `style.css?v=N` and `main.js?v=N`, bump both numbers together after browser-facing changes.
 - Do not draw text inside a Canvas transform that flips enemies with `ctx.scale(enemy.facing, 1)`.
 - Boss labels such as `CHARGE`, `SHOCK`, `JUMP`, `KNIFE`, `SMASH`, and `GUARD` should stay unflipped.
@@ -97,6 +97,10 @@ Start the next chat with:
 - Mid boss type: `mid_boss_brawler`.
 - Major boss type: `major_boss_brawler`.
 - Major boss is larger and uses a dedicated `BOSS` HP bar.
+- Major boss now has a short entry presentation:
+  - `Major Boss!` message
+  - light screen shake
+  - `MAJOR BOSS` warning overlay
 - Major boss uses all current mid boss techniques.
 - Bosses can guard.
 - Bosses react to front hits:
@@ -119,6 +123,15 @@ Start the next chat with:
   - `variant: "knife"`
   - uses `KNIFE`.
   - throws fan-shaped knives.
+- Mid Boss E:
+  - `variant: "summon"`
+  - uses `CALL`.
+  - summons regular enemies from the left and right.
+  - Easy: keeps up to 3 summoned melee enemies.
+  - Normal: keeps up to 3 summoned knife enemies.
+  - Hard: keeps up to 5 summoned knife/gunner enemies.
+  - The boss does not summon again while summoned enemies are alive.
+  - After all summoned enemies are defeated, the boss waits 10 seconds before it can summon again.
 
 ### Knife Boss Technique
 
@@ -143,6 +156,7 @@ const BOSS_SCHEDULE = [
   { area: 15, rank: "mid", variant: "jump", debugLabel: "中ボスC" },
   { area: 20, rank: "major", variant: "all", debugLabel: "大ボス" },
   { area: 25, rank: "mid", variant: "knife", debugLabel: "中ボスD" },
+  { area: 30, rank: "mid", variant: "summon", debugLabel: "中ボスE" },
 ];
 ```
 
@@ -175,7 +189,26 @@ This table controls both:
   - `chooseBossAttackType()`
   - `startMidBossAttack()`
   - `throwBossKnives()`
+  - `summonBossEnemies()`
+  - `canBossStartSummon()`
+  - `updateBossSummonCooldown()`
+  - `getBossSummonCount()`
+  - `getBossSummonTypes()`
   - `getMajorBossKnifeCount()`
+  - `majorBossIntroTimer`
+  - `screenShakeTimer`
+
+## Verification From This Session
+
+- Current git status before edits:
+  - branch: `main...origin/main`
+  - untracked folders only: `.playwright-cli/`, `output/`
+- Local server is running on port `4174`:
+  - `Python ... TCP *:4174 (LISTEN)`
+- Added major boss-only entry presentation.
+- Added Mid Boss E summon behavior.
+- Tuned Mid Boss E so summon waves must be defeated before a 10-second resummon cooldown starts.
+- Bumped browser cache references in `index.html` from `v=54` to `v=55`.
 
 ## Verification From Last Session
 
