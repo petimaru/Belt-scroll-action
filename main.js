@@ -116,6 +116,18 @@ const PLAYER_KNIFE = {
   radius: 10,
 };
 
+const PLAYER_SPRITE_HEIGHT = 92;
+const PLAYER_SPRITE_PATHS = {
+  idle: "assets/sprites/player/petiman-idle.png",
+  run1: "assets/sprites/player/petiman-run-1.png",
+  run2: "assets/sprites/player/petiman-run-2.png",
+  punch: "assets/sprites/player/petiman-punch.png",
+  jumpKick: "assets/sprites/player/petiman-high-kick.png",
+  damage: "assets/sprites/player/petiman-damage.png",
+  ko: "assets/sprites/player/petiman-ko.png",
+};
+const playerSprites = loadSpriteImages(PLAYER_SPRITE_PATHS);
+
 const BIKE_ENEMY = {
   warningTime: 1.45,
   speed: 560,
@@ -366,6 +378,8 @@ function createPlayer() {
     maxHp: 100,
     facing: 1,
     invincibleTimer: 0,
+    respawnInvincible: false,
+    damageSpriteTimer: 0,
     attackCooldown: 0,
     comboStep: 0,
     comboTimer: 0,
@@ -881,6 +895,33 @@ function showPlayerDefeatMessage() {
   showMessage(state.lives <= 1 ? "Retry!" : "Down!", 800);
 }
 
+function setPlayerInvincibleAfterDamage(duration) {
+  state.player.invincibleTimer = duration;
+  state.player.respawnInvincible = false;
+  state.player.damageSpriteTimer = Math.min(duration, 0.16);
+}
+
+function loadSpriteImages(paths) {
+  return Object.fromEntries(
+    Object.entries(paths).map(([key, path]) => {
+      const image = new Image();
+      const sprite = {
+        image,
+        loaded: false,
+        failed: false,
+      };
+      image.onload = () => {
+        sprite.loaded = true;
+      };
+      image.onerror = () => {
+        sprite.failed = true;
+      };
+      image.src = path;
+      return [key, sprite];
+    }),
+  );
+}
+
 function resizeCanvas() {
   const rect = canvas.getBoundingClientRect();
   const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
@@ -1080,6 +1121,8 @@ function updatePlayer(dt) {
   player.attackCooldown = Math.max(0, player.attackCooldown - dt);
   player.comboTimer = Math.max(0, player.comboTimer - dt);
   player.invincibleTimer = Math.max(0, player.invincibleTimer - dt);
+  player.damageSpriteTimer = Math.max(0, player.damageSpriteTimer - dt);
+  if (player.invincibleTimer <= 0) player.respawnInvincible = false;
 
   if (player.comboTimer <= 0 && player.attackCooldown <= 0) {
     player.comboStep = 0;
@@ -1129,6 +1172,8 @@ function revivePlayer() {
   player.hp = player.maxHp;
   player.facing = 1;
   player.invincibleTimer = 3;
+  player.respawnInvincible = true;
+  player.damageSpriteTimer = 0;
   player.attackCooldown = 0;
   player.comboStep = 0;
   player.comboTimer = 0;
@@ -1713,7 +1758,7 @@ function applyMidBossRadialAttack(enemy, player, radius, damage) {
   enemy.hasDamagedThisSwing = true;
   player.hp = Math.max(0, player.hp - damage);
   addSpecialGauge(10);
-  player.invincibleTimer = 0.65;
+  setPlayerInvincibleAfterDamage(0.65);
   addFloatingText(player.x, player.y - 62, `-${damage}`, "#ff6b5a");
   if (player.hp <= 0) showPlayerDefeatMessage();
 }
@@ -1852,7 +1897,7 @@ function updateBikeEnemy(enemy, player, dt) {
     enemy.hasDamagedThisRush = true;
     player.hp = Math.max(0, player.hp - enemy.damage);
     addSpecialGauge(10);
-    player.invincibleTimer = 0.65;
+    setPlayerInvincibleAfterDamage(0.65);
     addFloatingText(player.x, player.y - 62, `-${enemy.damage}`, "#ff6b5a");
     if (player.hp <= 0) showPlayerDefeatMessage();
   }
@@ -1872,7 +1917,7 @@ function updateProjectiles(dt) {
         projectile.active = false;
         player.hp = Math.max(0, player.hp - projectile.damage);
         addSpecialGauge(10);
-        player.invincibleTimer = 0.55;
+        setPlayerInvincibleAfterDamage(0.55);
         addFloatingText(player.x, player.y - 62, `-${projectile.damage}`, "#ff6b5a");
         if (player.hp <= 0) showPlayerDefeatMessage();
       }
@@ -2116,7 +2161,7 @@ function applyEnemyAttack(enemy, player) {
   enemy.hasDamagedThisSwing = true;
   player.hp = Math.max(0, player.hp - enemy.damage);
   addSpecialGauge(10);
-  player.invincibleTimer = 0.55;
+  setPlayerInvincibleAfterDamage(0.55);
   addFloatingText(player.x, player.y - 62, `-${enemy.damage}`, "#ff6b5a");
   if (player.hp <= 0) showPlayerDefeatMessage();
 }
@@ -2567,6 +2612,74 @@ function drawPlayer(scaleX, scaleY) {
   const jumpHeight = getPlayerJumpHeight(player);
   drawShadow(player, scaleX, scaleY);
 
+  if (drawPlayerSprite(player, jumpHeight, scaleX, scaleY)) return;
+
+  drawFallbackPlayer(player, jumpHeight, scaleX, scaleY);
+}
+
+function drawPlayerSprite(player, jumpHeight, scaleX, scaleY) {
+  const spriteKey = getPlayerSpriteKey(player);
+  const sprite = playerSprites[spriteKey] ?? playerSprites.idle;
+  if (!sprite?.loaded || sprite.failed) return false;
+
+  const image = sprite.image;
+  const spriteHeight = PLAYER_SPRITE_HEIGHT;
+  const spriteWidth = spriteHeight * (image.naturalWidth / image.naturalHeight);
+  const footOffsetY = 30;
+
+  ctx.save();
+  ctx.translate(player.x * scaleX, (player.y - jumpHeight) * scaleY);
+  ctx.scale(scaleX * player.facing, scaleY);
+  ctx.globalAlpha = player.invincibleTimer > 0 ? 0.65 : 1;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(image, -spriteWidth / 2, -spriteHeight + footOffsetY, spriteWidth, spriteHeight);
+  drawPlayerSpriteOverlays(player);
+  ctx.restore();
+  return true;
+}
+
+function getPlayerSpriteKey(player) {
+  if (player.hp <= 0) return "ko";
+  if (player.damageSpriteTimer > 0) return "damage";
+  if (player.isJumping && player.jumpKickUsed) return "jumpKick";
+  if (isPlayerAttackActive()) return "punch";
+  if (!player.isJumping && Math.hypot(input.moveX, input.moveY) > 0.08) {
+    return Math.floor(performance.now() / 140) % 2 === 0 ? "run1" : "run2";
+  }
+  return "idle";
+}
+
+function isPlayerAttackActive() {
+  return state.attacks.some((attack) => attack.comboStep && attack.comboStep !== "K" && attack.age < attack.duration);
+}
+
+function drawPlayerSpriteOverlays(player) {
+  if (player.isJumping) {
+    ctx.strokeStyle = "rgba(121, 215, 255, 0.72)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 4, 34, 0.2 * Math.PI, 0.82 * Math.PI);
+    ctx.stroke();
+  }
+
+  if (!player.hasKnife) return;
+
+  ctx.fillStyle = "#d8e2ea";
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.58)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(32, -22);
+  ctx.lineTo(54, -27);
+  ctx.lineTo(36, -14);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#72513d";
+  ctx.fillRect(25, -22, 10, 7);
+}
+
+function drawFallbackPlayer(player, jumpHeight, scaleX, scaleY) {
   ctx.save();
   ctx.translate(player.x * scaleX, (player.y - jumpHeight) * scaleY);
   ctx.scale(scaleX * player.facing, scaleY);

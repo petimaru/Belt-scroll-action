@@ -17,7 +17,7 @@ Start the next chat with:
 - Branch: `main`
 - Latest pushed gameplay commit before this handoff file: `f768947 Add boss debug starts and schedule`
 - Local server command for iPhone testing: `python3 -m http.server 4174 --bind 0.0.0.0`
-- Current iPhone test URL at the time of writing: `http://192.168.0.49:4174/?v=55`
+- Current iPhone test URL at the time of writing: `http://192.168.0.49:4174/?v=59`
 - Known untracked folders:
   - `.playwright-cli/`
   - `output/`
@@ -26,7 +26,7 @@ Start the next chat with:
 ## Important Working Rules
 
 - Do not use Playwright unless the user explicitly says to use Playwright.
-- For iPhone testing, update the URL cache buster such as `?v=55` when `index.html`, `main.js`, or `style.css` changes.
+- For iPhone testing, update the URL cache buster such as `?v=59` when `index.html`, `main.js`, or `style.css` changes.
 - If `index.html` references `style.css?v=N` and `main.js?v=N`, bump both numbers together after browser-facing changes.
 - Do not draw text inside a Canvas transform that flips enemies with `ctx.scale(enemy.facing, 1)`.
 - Boss labels such as `CHARGE`, `SHOCK`, `JUMP`, `KNIFE`, `SMASH`, and `GUARD` should stay unflipped.
@@ -143,6 +143,21 @@ Start the next chat with:
   - Normal: 5 knives
   - Hard: 7 knives, slightly faster
 
+### Player Sprite Replacement
+
+- Player drawing now tries to use `petiman` PNG sprites before falling back to the old Canvas shape.
+- Copied player sprites live in `assets/sprites/player/`.
+- Current sprite mapping:
+  - idle: `petiman-idle.png`
+  - moving: `petiman-run-1.png` / `petiman-run-2.png`
+  - normal attack: `petiman-punch.png`
+  - jump kick: `petiman-high-kick.png`
+  - invincible/damage: `petiman-damage.png`
+  - HP 0 / KO: `petiman-ko.png`
+- Collision, attack range, movement speed, and controls were not changed.
+- Respawn invincibility still lasts 3 seconds, but no longer forces the damage sprite.
+- Normal damage invincibility keeps its duration, but the damage sprite is only shown briefly.
+
 ## Boss Schedule
 
 Boss appearance and debug start buttons are generated from one table in `main.js`.
@@ -195,6 +210,9 @@ This table controls both:
   - `getBossSummonCount()`
   - `getBossSummonTypes()`
   - `getMajorBossKnifeCount()`
+  - `loadSpriteImages()`
+  - `drawPlayerSprite()`
+  - `drawFallbackPlayer()`
   - `majorBossIntroTimer`
   - `screenShakeTimer`
 
@@ -208,7 +226,11 @@ This table controls both:
 - Added major boss-only entry presentation.
 - Added Mid Boss E summon behavior.
 - Tuned Mid Boss E so summon waves must be defeated before a 10-second resummon cooldown starts.
-- Bumped browser cache references in `index.html` from `v=54` to `v=55`.
+- Added first-stage player sprite replacement using copied `petiman` PNGs.
+- Respawn invincibility now keeps normal idle/move/attack sprites instead of showing `petiman-damage.png` for 3 seconds.
+- HP 0 now uses `petiman-ko.png` until the revive/continue flow starts.
+- Normal damage now shows `petiman-damage.png` briefly, then returns to idle/move/attack sprites during the remaining invincibility.
+- Bumped browser cache references in `index.html` from `v=58` to `v=59`.
 
 ## Verification From Last Session
 
