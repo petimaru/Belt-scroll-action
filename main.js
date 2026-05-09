@@ -3,6 +3,8 @@ const ctx = canvas.getContext("2d");
 const hpBar = document.getElementById("hpBar");
 const hpText = document.getElementById("hpText");
 const lifeText = document.getElementById("lifeText");
+const playerAvatar = document.getElementById("playerAvatar");
+const playerNameLabel = document.getElementById("playerNameLabel");
 const specialButton = document.getElementById("specialButton");
 const specialBar = document.getElementById("specialBar");
 const specialText = document.getElementById("specialText");
@@ -10,6 +12,7 @@ const scoreText = document.getElementById("scoreText");
 const message = document.getElementById("message");
 const titleOverlay = document.getElementById("titleOverlay");
 const difficultyButtons = [...document.querySelectorAll("[data-difficulty]")];
+const characterActions = document.getElementById("characterActions");
 const debugStartActions = document.getElementById("debugStartActions");
 const continueOverlay = document.getElementById("continueOverlay");
 const continueCount = document.getElementById("continueCount");
@@ -116,17 +119,54 @@ const PLAYER_KNIFE = {
   radius: 10,
 };
 
-const PLAYER_SPRITE_HEIGHT = 92;
-const PLAYER_SPRITE_PATHS = {
-  idle: "assets/sprites/player/petiman-idle.png",
-  run1: "assets/sprites/player/petiman-run-1.png",
-  run2: "assets/sprites/player/petiman-run-2.png",
-  punch: "assets/sprites/player/petiman-punch.png",
-  jumpKick: "assets/sprites/player/petiman-high-kick.png",
-  damage: "assets/sprites/player/petiman-damage.png",
-  ko: "assets/sprites/player/petiman-ko.png",
+const PLAYER_CHARACTERS = {
+  petiman: {
+    label: "PETIMAN",
+    description: "balanced",
+    spriteHeight: 92,
+    spriteHeights: {},
+    footOffsetY: 30,
+    stats: {
+      maxHp: 100,
+      speed: 245,
+    },
+    sprites: {
+      idle: "assets/sprites/player/petiman-idle.png",
+      run1: "assets/sprites/player/petiman-run-1.png",
+      run2: "assets/sprites/player/petiman-run-2.png",
+      punch: "assets/sprites/player/petiman-punch.png",
+      jumpKick: "assets/sprites/player/petiman-high-kick.png",
+      damage: "assets/sprites/player/petiman-damage.png",
+      ko: "assets/sprites/player/petiman-ko.png",
+    },
+  },
+  rooeeebee: {
+    label: "ROOEEBEE",
+    description: "balanced",
+    spriteHeight: 108,
+    spriteHeights: {
+      ko: 54,
+    },
+    footOffsetY: 28,
+    stats: {
+      maxHp: 100,
+      speed: 245,
+    },
+    sprites: {
+      idle: "assets/sprites/player/rooeeebee-idle.png",
+      run1: "assets/sprites/player/rooeeebee-run-1.png",
+      run2: "assets/sprites/player/rooeeebee-run-2.png",
+      punch: "assets/sprites/player/rooeeebee-punch.png",
+      jumpKick: "assets/sprites/player/rooeeebee-high-kick.png",
+      damage: "assets/sprites/player/rooeeebee-damage.png",
+      ko: "assets/sprites/player/rooeeebee-ko.png",
+    },
+  },
 };
-const playerSprites = loadSpriteImages(PLAYER_SPRITE_PATHS);
+const playerSprites = Object.fromEntries(
+  Object.entries(PLAYER_CHARACTERS).map(([key, character]) => [key, loadSpriteImages(character.sprites)]),
+);
+let currentPlayerCharacterKey = "petiman";
 
 const BIKE_ENEMY = {
   warningTime: 1.45,
@@ -337,6 +377,10 @@ function getCurrentDifficulty() {
   return DIFFICULTY_SETTINGS[currentDifficultyKey] ?? DIFFICULTY_SETTINGS.normal;
 }
 
+function getCurrentPlayerCharacter() {
+  return PLAYER_CHARACTERS[currentPlayerCharacterKey] ?? PLAYER_CHARACTERS.petiman;
+}
+
 function scaleEnemyHp(value) {
   return Math.round(value * getCurrentDifficulty().enemyHpScale);
 }
@@ -369,13 +413,14 @@ function getAttackWindup(baseWindup, enemy) {
 }
 
 function createPlayer() {
+  const character = getCurrentPlayerCharacter();
   return {
     x: 210,
     y: 330,
     radius: 24,
-    speed: 245,
-    hp: 100,
-    maxHp: 100,
+    speed: character.stats.speed,
+    hp: character.stats.maxHp,
+    maxHp: character.stats.maxHp,
     facing: 1,
     invincibleTimer: 0,
     respawnInvincible: false,
@@ -756,6 +801,12 @@ function selectDifficulty(difficultyKey = currentDifficultyKey) {
   updateTitleOverlay();
 }
 
+function selectPlayerCharacter(characterKey = currentPlayerCharacterKey) {
+  if (PLAYER_CHARACTERS[characterKey]) currentPlayerCharacterKey = characterKey;
+  updateTitleOverlay();
+  updatePlayerIdentityHud();
+}
+
 function startGame(startArea = 1) {
   clearAllInput();
   resetRun(false, startArea);
@@ -763,9 +814,19 @@ function startGame(startArea = 1) {
 
 function updateTitleOverlay() {
   titleOverlay.hidden = state.gameStarted;
+  updatePlayerIdentityHud();
   difficultyButtons.forEach((button) => {
     button.classList.toggle("is-selected", button.dataset.difficulty === currentDifficultyKey);
   });
+  [...characterActions.querySelectorAll("[data-character]")].forEach((button) => {
+    button.classList.toggle("is-selected", button.dataset.character === currentPlayerCharacterKey);
+  });
+}
+
+function updatePlayerIdentityHud() {
+  const character = getCurrentPlayerCharacter();
+  playerNameLabel.textContent = character.label;
+  playerAvatar.replaceChildren(createCharacterFaceImage(character, `${character.label} face`));
 }
 
 function buildDebugStartButtons() {
@@ -780,6 +841,35 @@ function buildDebugStartButtons() {
     button.addEventListener("click", () => startGame(option.area));
     debugStartActions.append(button);
   });
+}
+
+function buildCharacterButtons() {
+  characterActions.replaceChildren();
+
+  Object.entries(PLAYER_CHARACTERS).forEach(([key, character]) => {
+    const button = document.createElement("button");
+    button.className = "character-button";
+    button.type = "button";
+    button.dataset.character = key;
+    button.append(createCharacterFaceImage(character, ""));
+
+    const labelWrap = document.createElement("span");
+    const name = document.createElement("span");
+    name.textContent = character.label;
+    const detail = document.createElement("small");
+    detail.textContent = character.description;
+    labelWrap.append(name, detail);
+    button.append(labelWrap);
+    button.addEventListener("click", () => selectPlayerCharacter(key));
+    characterActions.append(button);
+  });
+}
+
+function createCharacterFaceImage(character, altText) {
+  const image = document.createElement("img");
+  image.src = character.sprites.idle;
+  image.alt = altText;
+  return image;
 }
 
 function spawnWave(preserveEventEnemies = false) {
@@ -2618,21 +2708,22 @@ function drawPlayer(scaleX, scaleY) {
 }
 
 function drawPlayerSprite(player, jumpHeight, scaleX, scaleY) {
+  const character = getCurrentPlayerCharacter();
+  const sprites = playerSprites[currentPlayerCharacterKey] ?? playerSprites.petiman;
   const spriteKey = getPlayerSpriteKey(player);
-  const sprite = playerSprites[spriteKey] ?? playerSprites.idle;
+  const sprite = sprites[spriteKey] ?? sprites.idle;
   if (!sprite?.loaded || sprite.failed) return false;
 
   const image = sprite.image;
-  const spriteHeight = PLAYER_SPRITE_HEIGHT;
+  const spriteHeight = character.spriteHeights?.[spriteKey] ?? character.spriteHeight;
   const spriteWidth = spriteHeight * (image.naturalWidth / image.naturalHeight);
-  const footOffsetY = 30;
 
   ctx.save();
   ctx.translate(player.x * scaleX, (player.y - jumpHeight) * scaleY);
   ctx.scale(scaleX * player.facing, scaleY);
   ctx.globalAlpha = player.invincibleTimer > 0 ? 0.65 : 1;
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(image, -spriteWidth / 2, -spriteHeight + footOffsetY, spriteWidth, spriteHeight);
+  ctx.drawImage(image, -spriteWidth / 2, -spriteHeight + character.footOffsetY, spriteWidth, spriteHeight);
   drawPlayerSpriteOverlays(player);
   ctx.restore();
   return true;
@@ -3748,6 +3839,7 @@ canvas.addEventListener("contextmenu", (event) => event.preventDefault());
 resizeCanvas();
 preventBrowserZoomGestures();
 buildDebugStartButtons();
+buildCharacterButtons();
 updateTitleOverlay();
 updateHud();
 requestAnimationFrame(loop);

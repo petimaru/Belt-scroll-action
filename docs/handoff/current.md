@@ -17,7 +17,7 @@ Start the next chat with:
 - Branch: `main`
 - Latest pushed gameplay commit before this handoff file: `f768947 Add boss debug starts and schedule`
 - Local server command for iPhone testing: `python3 -m http.server 4174 --bind 0.0.0.0`
-- Current iPhone test URL at the time of writing: `http://192.168.0.49:4174/?v=59`
+- Current iPhone test URL at the time of writing: `http://192.168.0.49:4174/?v=62`
 - Known untracked folders:
   - `.playwright-cli/`
   - `output/`
@@ -26,7 +26,7 @@ Start the next chat with:
 ## Important Working Rules
 
 - Do not use Playwright unless the user explicitly says to use Playwright.
-- For iPhone testing, update the URL cache buster such as `?v=59` when `index.html`, `main.js`, or `style.css` changes.
+- For iPhone testing, update the URL cache buster such as `?v=62` when `index.html`, `main.js`, or `style.css` changes.
 - If `index.html` references `style.css?v=N` and `main.js?v=N`, bump both numbers together after browser-facing changes.
 - Do not draw text inside a Canvas transform that flips enemies with `ctx.scale(enemy.facing, 1)`.
 - Boss labels such as `CHARGE`, `SHOCK`, `JUMP`, `KNIFE`, `SMASH`, and `GUARD` should stay unflipped.
@@ -143,18 +143,20 @@ Start the next chat with:
   - Normal: 5 knives
   - Hard: 7 knives, slightly faster
 
-### Player Sprite Replacement
+### Player Character Selection
 
-- Player drawing now tries to use `petiman` PNG sprites before falling back to the old Canvas shape.
+- Title screen now lets the player choose:
+  - `PETIMAN`
+  - `ROOEEBEE`
+- Player drawing uses the selected character's PNG sprites before falling back to the old Canvas shape.
 - Copied player sprites live in `assets/sprites/player/`.
-- Current sprite mapping:
-  - idle: `petiman-idle.png`
-  - moving: `petiman-run-1.png` / `petiman-run-2.png`
-  - normal attack: `petiman-punch.png`
-  - jump kick: `petiman-high-kick.png`
-  - invincible/damage: `petiman-damage.png`
-  - HP 0 / KO: `petiman-ko.png`
-- Collision, attack range, movement speed, and controls were not changed.
+- Both characters currently share the same stats:
+  - HP: 100
+  - speed: 245
+- Future character performance differences should start from `PLAYER_CHARACTERS`.
+- Character-specific sprite size overrides can use `spriteHeights`; ROOEEBEE's KO sprite is currently half-size.
+- HUD now shows the selected character's face icon and name.
+- Collision, attack range, movement speed, and controls are unchanged for now.
 - Respawn invincibility still lasts 3 seconds, but no longer forces the damage sprite.
 - Normal damage invincibility keeps its duration, but the damage sprite is only shown briefly.
 
@@ -189,10 +191,14 @@ This table controls both:
   - cache-busted CSS/JS references
 - `style.css`
   - `.title-overlay`
+  - `.character-actions`
+  - `.character-button`
   - `.difficulty-actions`
   - `.debug-start-actions`
   - `.start-button`
 - `main.js`
+  - `PLAYER_CHARACTERS`
+  - `currentPlayerCharacterKey`
   - `DIFFICULTY_SETTINGS`
   - `MID_BOSS_ENEMY`
   - `MAJOR_BOSS_ENEMY`
@@ -210,6 +216,9 @@ This table controls both:
   - `getBossSummonCount()`
   - `getBossSummonTypes()`
   - `getMajorBossKnifeCount()`
+  - `buildCharacterButtons()`
+  - `selectPlayerCharacter()`
+  - `updatePlayerIdentityHud()`
   - `loadSpriteImages()`
   - `drawPlayerSprite()`
   - `drawFallbackPlayer()`
@@ -230,7 +239,11 @@ This table controls both:
 - Respawn invincibility now keeps normal idle/move/attack sprites instead of showing `petiman-damage.png` for 3 seconds.
 - HP 0 now uses `petiman-ko.png` until the revive/continue flow starts.
 - Normal damage now shows `petiman-damage.png` briefly, then returns to idle/move/attack sprites during the remaining invincibility.
-- Bumped browser cache references in `index.html` from `v=58` to `v=59`.
+- Added title-screen player character selection for `PETIMAN` and `ROOEEBEE`.
+- HUD now shows the selected character's face icon and name.
+- Added `PLAYER_CHARACTERS` as the future entry point for character stat differences.
+- Added a ROOEEBEE-only KO sprite height override so the KO graphic draws at about half size.
+- Bumped browser cache references in `index.html` from `v=61` to `v=62`.
 
 ## Verification From Last Session
 

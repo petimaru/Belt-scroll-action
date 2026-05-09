@@ -7,16 +7,16 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
     <title>ベルトスクロールアクションメーカー Prototype</title>
-    <link rel="stylesheet" href="style.css?v=59" />
+    <link rel="stylesheet" href="style.css?v=62" />
   </head>
   <body>
     <main class="game-shell" aria-label="ベルトスクロールアクションゲーム">
       <header class="hud hud-top">
         <div class="player-card">
-          <span class="avatar" aria-hidden="true">P</span>
+          <span id="playerAvatar" class="avatar" aria-hidden="true"></span>
           <div>
             <div class="player-meta">
-              <p class="label">Player</p>
+              <p id="playerNameLabel" class="label">PETIMAN</p>
               <strong id="lifeText" class="life-text">LIFE 3</strong>
             </div>
             <div class="meter" aria-label="プレイヤーHP">
@@ -47,6 +47,7 @@
           <div class="title-panel">
             <p class="title-kicker">Belt Scroll Action</p>
             <h1>STREET BREAKER</h1>
+            <div id="characterActions" class="character-actions" aria-label="キャラクター選択"></div>
             <div class="difficulty-actions" aria-label="難易度選択">
               <button class="difficulty-button" type="button" data-difficulty="easy">
                 <span>Easy</span>
@@ -80,6 +81,6 @@
       </footer>
     </main>
 
-    <script src="main.js?v=59"></script>
+    <script src="main.js?v=62"></script>
   </body>
 </html>
