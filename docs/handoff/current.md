@@ -6,27 +6,36 @@
 
 ## New Chat Instruction
 
-Start the next chat with:
+Copy and paste this into the next chat:
 
-`/Users/takedakouji/Documents/Belt scroll action/docs/handoff/current.md を読んで、続きを進めてください。まず現在のgit状態とローカルサーバー状態を確認してください。`
+```md
+/Users/takedakouji/Documents/Belt scroll action/docs/handoff/current.md を読んで、続きを進めてください。
+
+まず現在のgit状態とローカルサーバー状態を確認してください。
+
+前回は、タイトル画面で PETIMAN / ROOEEBEE を選べるようにし、HUDの顔アイコンと名前表示、ROOEEBEEのKO画像サイズ調整まで実装して、GitHubへpush済みです。
+
+次は、画像差し替えの続きとして「通常敵・ボス・背景・攻撃エフェクトのどこから進めるか」を一緒に決めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲を短く説明してください。
+```
 
 ## Project
 
 - Workspace: `/Users/takedakouji/Documents/Belt scroll action`
 - GitHub: `https://github.com/petimaru/Belt-scroll-action.git`
 - Branch: `main`
-- Latest pushed gameplay commit before this handoff file: `f768947 Add boss debug starts and schedule`
+- Latest pushed commit: `67a12d3 Add player character selection`
 - Local server command for iPhone testing: `python3 -m http.server 4174 --bind 0.0.0.0`
-- Current iPhone test URL at the time of writing: `http://192.168.0.49:4174/?v=62`
+- Current iPhone test URL at the time of writing: `http://192.168.0.49:4174/?v=67`
 - Known untracked folders:
   - `.playwright-cli/`
   - `output/`
+  - `tmp/`
   - These were not committed intentionally.
 
 ## Important Working Rules
 
 - Do not use Playwright unless the user explicitly says to use Playwright.
-- For iPhone testing, update the URL cache buster such as `?v=62` when `index.html`, `main.js`, or `style.css` changes.
+- For iPhone testing, update the URL cache buster such as `?v=67` when `index.html`, `main.js`, or `style.css` changes.
 - If `index.html` references `style.css?v=N` and `main.js?v=N`, bump both numbers together after browser-facing changes.
 - Do not draw text inside a Canvas transform that flips enemies with `ctx.scale(enemy.facing, 1)`.
 - Boss labels such as `CHARGE`, `SHOCK`, `JUMP`, `KNIFE`, `SMASH`, and `GUARD` should stay unflipped.
@@ -160,6 +169,37 @@ Start the next chat with:
 - Respawn invincibility still lasts 3 seconds, but no longer forces the damage sprite.
 - Normal damage invincibility keeps its duration, but the damage sprite is only shown briefly.
 
+### Enemy Sprite Replacement
+
+- Enemy sprite folder is `assets/sprites/enemy/`.
+- Current general enemy sprite replacements:
+  - `assets/sprites/enemy/general/slow_puncher_idle.png`
+  - `assets/sprites/enemy/general/slow_puncher_move.png`
+  - `assets/sprites/enemy/general/slow_puncher_attack.png`
+  - `assets/sprites/enemy/general/slow_puncher_damage.png`
+  - `assets/sprites/enemy/general/slow_puncher_ko.png`
+  - `assets/sprites/enemy/general/knife_thrower_idle.png`
+  - `assets/sprites/enemy/general/knife_thrower_move.png`
+  - `assets/sprites/enemy/general/knife_thrower_throw.png`
+  - `assets/sprites/enemy/general/knife_thrower_damage.png`
+  - `assets/sprites/enemy/general/knife_thrower_ko.png`
+  - `assets/sprites/enemy/general/gunner_idle.png`
+  - `assets/sprites/enemy/general/gunner_move.png`
+  - `assets/sprites/enemy/general/gunner_shoot.png`
+  - `assets/sprites/enemy/general/gunner_damage.png`
+  - `assets/sprites/enemy/general/gunner_ko.png`
+- Green `#11ef1a` style backgrounds were converted to transparency.
+- General enemies fall back to the old Canvas shapes if image loading fails.
+- `sprite-height-compare.html` compares PETIMAN, ROOEEBEE, and current enemy idle/KO sizes with normal enemy and KO enemy sliders.
+- Enemy definitions in `ENEMY_SPRITE_DEFS` have separate `spriteHeight` and `koSpriteHeight` values.
+- `sprite-height-compare.html` now has per-enemy sliders for each normal sprite and each KO sprite.
+- A reusable Codex skill exists at `~/.codex/skills/enemy-sprite-size-tuner/SKILL.md` for future sprite size tuning.
+- Current general enemy visual sizes:
+  - `slow_puncher`: `spriteHeight: 139`, `koSpriteHeight: 86`
+  - `knife_thrower`: `spriteHeight: 139`, `koSpriteHeight: 69`
+  - `gunner`: `spriteHeight: 139`, `koSpriteHeight: 86`
+- Image-based general enemy HP bars are drawn near the feet so larger sprites do not cover the bar.
+
 ## Boss Schedule
 
 Boss appearance and debug start buttons are generated from one table in `main.js`.
@@ -199,6 +239,8 @@ This table controls both:
 - `main.js`
   - `PLAYER_CHARACTERS`
   - `currentPlayerCharacterKey`
+  - `ENEMY_SPRITE_DEFS`
+  - `enemySprites`
   - `DIFFICULTY_SETTINGS`
   - `MID_BOSS_ENEMY`
   - `MAJOR_BOSS_ENEMY`
@@ -222,16 +264,17 @@ This table controls both:
   - `loadSpriteImages()`
   - `drawPlayerSprite()`
   - `drawFallbackPlayer()`
+  - `drawEnemySprite()`
+  - `getEnemySpriteKey()`
   - `majorBossIntroTimer`
   - `screenShakeTimer`
 
 ## Verification From This Session
 
-- Current git status before edits:
+- Current pushed state:
   - branch: `main...origin/main`
-  - untracked folders only: `.playwright-cli/`, `output/`
-- Local server is running on port `4174`:
-  - `Python ... TCP *:4174 (LISTEN)`
+  - latest pushed commit: `67a12d3 Add player character selection`
+  - remaining untracked folders only: `.playwright-cli/`, `output/`
 - Added major boss-only entry presentation.
 - Added Mid Boss E summon behavior.
 - Tuned Mid Boss E so summon waves must be defeated before a 10-second resummon cooldown starts.
@@ -243,7 +286,19 @@ This table controls both:
 - HUD now shows the selected character's face icon and name.
 - Added `PLAYER_CHARACTERS` as the future entry point for character stat differences.
 - Added a ROOEEBEE-only KO sprite height override so the KO graphic draws at about half size.
-- Bumped browser cache references in `index.html` from `v=61` to `v=62`.
+- Added first enemy sprite replacement for `slow_puncher`.
+- Converted `slow_puncher`, `knife_thrower`, and `gunner` enemy sprites from green background to transparent PNGs.
+- Added enemy sprite replacement for `knife_thrower` and `gunner`.
+- HP 0 enemies now keep a short KO display timer so the KO sprite is visible before removal.
+- Added `sprite-height-compare.html` for visual size tuning.
+- Added separate `koSpriteHeight` support for enemy KO images.
+- Applied tuned enemy sizes from comparison page: normal `139px`, KO `86px`, knife thrower KO `69px`.
+- Moved image-based general enemy HP bars from chest height to foot height.
+- Bumped browser cache references in `index.html` from `v=66` to `v=67`.
+- Last verification before push:
+  - `node --check main.js` passed.
+  - `git diff --check` passed.
+  - Local server responded on `http://127.0.0.1:4174/?v=62`.
 
 ## Verification From Last Session
 
@@ -255,25 +310,17 @@ This table controls both:
 
 ## Suggested Next Steps
 
-- Use debug start buttons on iPhone to feel-test:
-  - Mid Boss A
-  - Mid Boss B
-  - Mid Boss C
-  - Mid Boss D
-  - Major Boss
-- Tune Mid Boss D knife spread:
-  - speed
-  - spread angle
-  - warning length
-  - number of knives if needed
-- Tune Major Boss knife attack:
-  - Hard 7-knife pattern may be strong but fun.
-  - Confirm it is hard without feeling unfair.
-- Add major boss-only presentation:
-  - entry warning
-  - heavier landing or screen shake
-  - stronger HP bar styling
-- Consider adding small enemies during boss fights later.
+- Decide the next image replacement target:
+  - normal enemies
+  - mid bosses / major boss
+  - background
+  - attack and projectile effects
+- If continuing character work:
+  - consider character-specific stats in `PLAYER_CHARACTERS`
+  - consider LocalStorage later for selected character and difficulty
+- If testing first:
+  - iPhone feel-test PETIMAN / ROOEEBEE selection and ROOEEBEE KO size
+  - use debug start buttons to check boss fights with both characters
 - Consider LocalStorage later for difficulty or progress.
 
 ## Before Continuing

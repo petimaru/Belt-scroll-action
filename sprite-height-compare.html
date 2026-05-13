@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sprite Height Compare</title>
+    <style>
+      :root {
+        color: #f7f1df;
+        background: #20242b;
+        font-family: Trebuchet MS, system-ui, sans-serif;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+      }
+
+      main {
+        max-width: 1180px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        margin: 0 0 16px;
+        font-size: 24px;
+      }
+
+      .controls {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 14px;
+        margin-bottom: 20px;
+      }
+
+      .controls-title {
+        grid-column: 1 / -1;
+        margin: 4px 0 -4px;
+        color: #ffc857;
+        font-size: 14px;
+        font-weight: 900;
+      }
+
+      .control {
+        padding: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.2);
+      }
+
+      label {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+        font-weight: 900;
+      }
+
+      input[type="range"] {
+        width: 100%;
+      }
+
+      .stage {
+        position: relative;
+        overflow-x: auto;
+        min-height: 360px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+        background:
+          linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px) 0 0 / 100% 46px,
+          linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 46px 100%,
+          #2b3038;
+      }
+
+      .ground {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 72px;
+        height: 2px;
+        background: #ffc857;
+      }
+
+      .line-label {
+        position: absolute;
+        left: 14px;
+        bottom: 80px;
+        color: #ffc857;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .row {
+        position: relative;
+        display: flex;
+        align-items: flex-end;
+        gap: 34px;
+        min-width: 1040px;
+        height: 330px;
+        padding: 0 28px 72px;
+        box-sizing: border-box;
+      }
+
+      .sprite-card {
+        width: 126px;
+        text-align: center;
+      }
+
+      .sprite-wrap {
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        height: 210px;
+      }
+
+      canvas {
+        image-rendering: pixelated;
+      }
+
+      .name {
+        margin-top: 8px;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .meta {
+        margin-top: 4px;
+        color: #cbd6df;
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .note {
+        margin-top: 14px;
+        color: #cbd6df;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .values {
+        white-space: pre-wrap;
+        margin-top: 14px;
+        padding: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        color: #f7f1df;
+        background: rgba(0, 0, 0, 0.22);
+        font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Sprite Height Compare</h1>
+
+      <section id="controls" class="controls">
+        <div class="controls-title">Normal spriteHeight</div>
+        <div class="controls-title">KO koSpriteHeight</div>
+      </section>
+
+      <section class="stage">
+        <div class="ground"></div>
+        <div class="line-label">foot line</div>
+        <div id="row" class="row"></div>
+      </section>
+
+      <p class="note">
+        各敵の通常画像とKO画像を個別に調整できます。下の値を `main.js` の `ENEMY_SPRITE_DEFS` に反映します。
+      </p>
+      <pre id="values" class="values"></pre>
+    </main>
+
+    <script>
+      const sprites = [
+        {
+          name: "PETIMAN",
+          kind: "player",
+          path: "assets/sprites/player/petiman-idle.png",
+          height: 92,
+        },
+        {
+          name: "ROOEEBEE",
+          kind: "player",
+          path: "assets/sprites/player/rooeeebee-idle.png",
+          height: 108,
+        },
+        {
+          name: "slow_puncher idle",
+          kind: "enemy",
+          enemy: "slow_puncher",
+          control: "slow_puncher",
+          path: "assets/sprites/enemy/general/slow_puncher_idle.png",
+          height: 139,
+        },
+        {
+          name: "knife_thrower idle",
+          kind: "enemy",
+          enemy: "knife_thrower",
+          control: "knife_thrower",
+          path: "assets/sprites/enemy/general/knife_thrower_idle.png",
+          height: 139,
+        },
+        {
+          name: "gunner idle",
+          kind: "enemy",
+          enemy: "gunner",
+          control: "gunner",
+          path: "assets/sprites/enemy/general/gunner_idle.png",
+          height: 139,
+        },
+        {
+          name: "slow_puncher KO",
+          kind: "enemy-ko",
+          enemy: "slow_puncher",
+          control: "slow_puncher_ko",
+          path: "assets/sprites/enemy/general/slow_puncher_ko.png",
+          height: 86,
+        },
+        {
+          name: "knife_thrower KO",
+          kind: "enemy-ko",
+          enemy: "knife_thrower",
+          control: "knife_thrower_ko",
+          path: "assets/sprites/enemy/general/knife_thrower_ko.png",
+          height: 69,
+        },
+        {
+          name: "gunner KO",
+          kind: "enemy-ko",
+          enemy: "gunner",
+          control: "gunner_ko",
+          path: "assets/sprites/enemy/general/gunner_ko.png",
+          height: 86,
+        },
+      ];
+
+      const row = document.querySelector("#row");
+      const controls = document.querySelector("#controls");
+      const values = document.querySelector("#values");
+      const loadedSprites = [];
+      const sliders = {};
+      const enemySettings = {
+        slow_puncher: { spriteHeight: 139, koSpriteHeight: 86 },
+        knife_thrower: { spriteHeight: 139, koSpriteHeight: 69 },
+        gunner: { spriteHeight: 139, koSpriteHeight: 86 },
+      };
+
+      function loadImage(path) {
+        return new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = reject;
+          image.src = path;
+        });
+      }
+
+      function getVisibleBounds(image) {
+        const canvas = document.createElement("canvas");
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        context.drawImage(image, 0, 0);
+        const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height);
+        let minX = width;
+        let minY = height;
+        let maxX = -1;
+        let maxY = -1;
+
+        for (let y = 0; y < height; y += 1) {
+          for (let x = 0; x < width; x += 1) {
+            const alpha = data[(y * width + x) * 4 + 3];
+            if (alpha <= 8) continue;
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          }
+        }
+
+        return maxX < 0
+          ? { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight }
+          : { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
+      }
+
+      function getScale(sprite) {
+        if (sprite.control) return Number(sliders[sprite.control].input.value) / sprite.height;
+        return 1;
+      }
+
+      function getDrawHeight(sprite) {
+        if (!sprite.control) return sprite.height;
+        return Number(sliders[sprite.control].input.value);
+      }
+
+      function drawSprite(item) {
+        const scale = getScale(item);
+        const drawHeight = getDrawHeight(item);
+        const source = item.kind === "player"
+          ? { x: 0, y: 0, width: item.image.naturalWidth, height: item.image.naturalHeight }
+          : item.bounds;
+        const drawWidth = Math.round(drawHeight * (source.width / source.height));
+        item.canvas.width = Math.max(1, drawWidth);
+        item.canvas.height = Math.max(1, drawHeight);
+        const context = item.canvas.getContext("2d");
+        context.imageSmoothingEnabled = false;
+        context.clearRect(0, 0, item.canvas.width, item.canvas.height);
+        context.drawImage(
+          item.image,
+          source.x,
+          source.y,
+          source.width,
+          source.height,
+          0,
+          0,
+          drawWidth,
+          drawHeight,
+        );
+        item.meta.textContent = `${drawWidth} x ${drawHeight}px / scale ${scale.toFixed(2)}`;
+      }
+
+      function update() {
+        Object.values(sliders).forEach(({ input, value }) => {
+          value.textContent = `${input.value}px`;
+        });
+        loadedSprites.forEach(drawSprite);
+        values.textContent = Object.entries(enemySettings)
+          .map(([enemy, setting]) => {
+            const spriteHeight = Number(sliders[enemy].input.value);
+            const koSpriteHeight = Number(sliders[`${enemy}_ko`].input.value);
+            return `${enemy}: { spriteHeight: ${spriteHeight}, koSpriteHeight: ${koSpriteHeight} }`;
+          })
+          .join("\n");
+      }
+
+      function addSlider(key, label, value, min, max) {
+        const control = document.createElement("div");
+        control.className = "control";
+        const labelElement = document.createElement("label");
+        labelElement.htmlFor = key;
+        const labelText = document.createElement("span");
+        labelText.textContent = label;
+        const valueText = document.createElement("span");
+        const input = document.createElement("input");
+        input.id = key;
+        input.type = "range";
+        input.min = min;
+        input.max = max;
+        input.step = 1;
+        input.value = value;
+        input.addEventListener("input", update);
+        labelElement.append(labelText, valueText);
+        control.append(labelElement, input);
+        controls.append(control);
+        sliders[key] = { input, value: valueText };
+      }
+
+      function createControls() {
+        Object.entries(enemySettings).forEach(([enemy, setting]) => {
+          addSlider(enemy, enemy, setting.spriteHeight, 80, 190);
+        });
+        Object.entries(enemySettings).forEach(([enemy, setting]) => {
+          addSlider(`${enemy}_ko`, `${enemy} KO`, setting.koSpriteHeight, 35, 140);
+        });
+      }
+
+      async function init() {
+        createControls();
+        for (const sprite of sprites) {
+          const image = await loadImage(sprite.path);
+          const card = document.createElement("div");
+          card.className = "sprite-card";
+          const wrap = document.createElement("div");
+          wrap.className = "sprite-wrap";
+          const canvas = document.createElement("canvas");
+          const name = document.createElement("div");
+          name.className = "name";
+          name.textContent = sprite.name;
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          wrap.append(canvas);
+          card.append(wrap, name, meta);
+          row.append(card);
+          loadedSprites.push({
+            ...sprite,
+            image,
+            canvas,
+            meta,
+            bounds: getVisibleBounds(image),
+          });
+        }
+        update();
+      }
+
+      init();
+    </script>
+  </body>
+</html>

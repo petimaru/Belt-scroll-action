@@ -168,6 +168,49 @@ const playerSprites = Object.fromEntries(
 );
 let currentPlayerCharacterKey = "petiman";
 
+const ENEMY_SPRITE_DEFS = {
+  slow_puncher: {
+    spriteHeight: 139,
+    koSpriteHeight: 86,
+    footOffsetY: 24,
+    sprites: {
+      idle: "assets/sprites/enemy/general/slow_puncher_idle.png",
+      move: "assets/sprites/enemy/general/slow_puncher_move.png",
+      attack: "assets/sprites/enemy/general/slow_puncher_attack.png",
+      damage: "assets/sprites/enemy/general/slow_puncher_damage.png",
+      ko: "assets/sprites/enemy/general/slow_puncher_ko.png",
+    },
+  },
+  knife_thrower: {
+    spriteHeight: 139,
+    koSpriteHeight: 69,
+    footOffsetY: 24,
+    sprites: {
+      idle: "assets/sprites/enemy/general/knife_thrower_idle.png",
+      move: "assets/sprites/enemy/general/knife_thrower_move.png",
+      attack: "assets/sprites/enemy/general/knife_thrower_throw.png",
+      damage: "assets/sprites/enemy/general/knife_thrower_damage.png",
+      ko: "assets/sprites/enemy/general/knife_thrower_ko.png",
+    },
+  },
+  gunner: {
+    spriteHeight: 139,
+    koSpriteHeight: 86,
+    footOffsetY: 24,
+    sprites: {
+      idle: "assets/sprites/enemy/general/gunner_idle.png",
+      move: "assets/sprites/enemy/general/gunner_move.png",
+      attack: "assets/sprites/enemy/general/gunner_shoot.png",
+      damage: "assets/sprites/enemy/general/gunner_damage.png",
+      ko: "assets/sprites/enemy/general/gunner_ko.png",
+    },
+  },
+};
+const enemySprites = Object.fromEntries(
+  Object.entries(ENEMY_SPRITE_DEFS).map(([key, enemyDef]) => [key, loadSpriteImages(enemyDef.sprites)]),
+);
+const ENEMY_KO_DISPLAY_TIME = 0.75;
+
 const BIKE_ENEMY = {
   warningTime: 1.45,
   speed: 560,
@@ -1351,6 +1394,12 @@ function updateEnemies(dt) {
   const player = state.player;
 
   state.enemies.forEach((enemy) => {
+    if (enemy.hp <= 0) {
+      enemy.koTimer = Math.max(0, (enemy.koTimer ?? 0) - dt);
+      enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
+      return;
+    }
+
     if (enemy.type === "bike_rusher") {
       updateBikeEnemy(enemy, player, dt);
       return;
@@ -2257,6 +2306,8 @@ function applyEnemyAttack(enemy, player) {
 }
 
 function damageEnemy(enemy, damage, options = {}) {
+  if (enemy.hp <= 0) return { damage: 0, type: "normal" };
+
   const hasBossArmor = isBossEnemy(enemy) && (enemy.attackWindup > 0 || enemy.attackActive > 0 || enemy.guardTimer > 0);
   const knockbackScale = isBossEnemy(enemy) ? 0.35 : 1;
   const bossDefense = getBossDefenseResult(enemy, damage, options);
@@ -2380,12 +2431,21 @@ function updateAttacks(dt) {
 
   state.attacks = state.attacks.filter((attack) => attack.age < attack.duration);
 
-  const defeatedCount = state.enemies.filter((enemy) => enemy.hp <= 0).length;
-  if (defeatedCount > 0) {
-    state.score += defeatedCount * 250;
-    state.enemies.filter((enemy) => enemy.hp <= 0).forEach(dropItemFromEnemy);
-    state.enemies = state.enemies.filter((enemy) => enemy.hp > 0);
+  const newlyDefeatedEnemies = state.enemies.filter((enemy) => enemy.hp <= 0 && !enemy.defeatHandled);
+  if (newlyDefeatedEnemies.length > 0) {
+    state.score += newlyDefeatedEnemies.length * 250;
+    newlyDefeatedEnemies.forEach((enemy) => {
+      enemy.defeatHandled = true;
+      enemy.koTimer = ENEMY_KO_DISPLAY_TIME;
+      enemy.attackWindup = 0;
+      enemy.attackActive = 0;
+      enemy.shotWindup = 0;
+      enemy.throwWindup = 0;
+      enemy.hitFlash = 0;
+      dropItemFromEnemy(enemy);
+    });
   }
+  state.enemies = state.enemies.filter((enemy) => enemy.hp > 0 || (enemy.koTimer ?? 0) > 0);
 
   const brokenBreakables = state.breakables.filter((breakable) => breakable.hp <= 0);
   if (brokenBreakables.length > 0) {
@@ -2401,7 +2461,7 @@ function updateAttacks(dt) {
     if (enemy.type !== "bike_rusher") return true;
     const hasExitedLeft = enemy.facing < 0 && enemy.x < -130;
     const hasExitedRight = enemy.facing > 0 && enemy.x > WORLD.width + 130;
-    return enemy.hp > 0 && !hasExitedLeft && !hasExitedRight;
+    return (enemy.hp > 0 || (enemy.koTimer ?? 0) > 0) && !hasExitedLeft && !hasExitedRight;
   });
 
   maybeAdvanceWave();
@@ -2840,6 +2900,10 @@ function drawEnemies(scaleX, scaleY) {
       return;
     }
 
+    if (drawEnemySprite(enemy, scaleX, scaleY)) {
+      return;
+    }
+
     if (enemy.type === "knife_thrower") {
       drawKnifeEnemy(enemy, scaleX, scaleY);
       return;
@@ -2901,6 +2965,105 @@ function drawEnemies(scaleX, scaleY) {
       drawEnemyAttackBox(enemy, scaleX, scaleY);
     }
   });
+}
+
+function drawEnemySprite(enemy, scaleX, scaleY) {
+  const enemyDef = ENEMY_SPRITE_DEFS[enemy.type];
+  const sprites = enemySprites[enemy.type];
+  if (!enemyDef || !sprites) return false;
+
+  const spriteKey = getEnemySpriteKey(enemy);
+  const sprite = sprites[spriteKey] ?? sprites.idle;
+  if (!sprite?.loaded || sprite.failed) return false;
+
+  drawShadow(enemy, scaleX, scaleY);
+  const image = sprite.image;
+  const spriteHeight = spriteKey === "ko" ? enemyDef.koSpriteHeight ?? enemyDef.spriteHeight : enemyDef.spriteHeight;
+  const source = getSpriteVisibleBounds(sprite);
+  const spriteWidth = spriteHeight * (source.width / source.height);
+
+  ctx.save();
+  ctx.translate(enemy.x * scaleX, enemy.y * scaleY);
+  ctx.scale(scaleX * enemy.facing, scaleY);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(
+    image,
+    source.x,
+    source.y,
+    source.width,
+    source.height,
+    -spriteWidth / 2,
+    -spriteHeight + enemyDef.footOffsetY,
+    spriteWidth,
+    spriteHeight,
+  );
+
+  if (enemy.entering && enemy.entryMode === "drop") {
+    ctx.strokeStyle = "rgba(255, 232, 180, 0.5)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-20, -74);
+    ctx.lineTo(20, -74);
+    ctx.stroke();
+  }
+
+  const hpWidth = 58;
+  const hpY = 22;
+  const hpRatio = Math.max(0, enemy.hp / enemy.maxHp);
+  ctx.fillStyle = "rgba(0, 0, 0, 0.44)";
+  ctx.fillRect(-hpWidth / 2, hpY, hpWidth, 7);
+  ctx.fillStyle = "#ffcf5a";
+  ctx.fillRect(-hpWidth / 2, hpY, hpWidth * hpRatio, 7);
+  ctx.restore();
+  return true;
+}
+
+function getSpriteVisibleBounds(sprite) {
+  if (sprite.visibleBounds) return sprite.visibleBounds;
+
+  const image = sprite.image;
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, 0);
+  const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height);
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const alpha = data[(y * width + x) * 4 + 3];
+      if (alpha <= 8) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+
+  sprite.visibleBounds =
+    maxX < 0
+      ? { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight }
+      : { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
+  return sprite.visibleBounds;
+}
+
+function getEnemySpriteKey(enemy) {
+  if (enemy.hp <= 0) return "ko";
+  if (enemy.hitFlash > 0) return "damage";
+  if (enemy.attackWindup > 0 || enemy.attackActive > 0 || enemy.throwWindup > 0 || enemy.shotWindup > 0) return "attack";
+  if (
+    enemy.entering ||
+    enemy.repositioning ||
+    Math.abs(enemy.knockbackX) > 2 ||
+    Math.abs(enemy.knockbackY) > 2
+  ) {
+    return "move";
+  }
+  return "idle";
 }
 
 function drawGunnerEnemy(enemy, scaleX, scaleY) {
