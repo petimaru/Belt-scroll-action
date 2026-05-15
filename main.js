@@ -205,6 +205,17 @@ const ENEMY_SPRITE_DEFS = {
       ko: "assets/sprites/enemy/general/gunner_ko.png",
     },
   },
+  bike_rusher: {
+    spriteHeight: 118,
+    koSpriteHeight: 82,
+    footOffsetY: 18,
+    sprites: {
+      idle: "assets/sprites/enemy/general/bike_rusher_idle.png",
+      move: "assets/sprites/enemy/general/bike_rusher_move.png",
+      damage: "assets/sprites/enemy/general/bike_rusher_damage.png",
+      ko: "assets/sprites/enemy/general/bike_rusher_ko.png",
+    },
+  },
 };
 const enemySprites = Object.fromEntries(
   Object.entries(ENEMY_SPRITE_DEFS).map(([key, enemyDef]) => [key, loadSpriteImages(enemyDef.sprites)]),
@@ -3054,6 +3065,7 @@ function getSpriteVisibleBounds(sprite) {
 function getEnemySpriteKey(enemy) {
   if (enemy.hp <= 0) return "ko";
   if (enemy.hitFlash > 0) return "damage";
+  if (enemy.type === "bike_rusher") return enemy.warningTimer > 0 ? "idle" : "move";
   if (enemy.attackWindup > 0 || enemy.attackActive > 0 || enemy.throwWindup > 0 || enemy.shotWindup > 0) return "attack";
   if (
     enemy.entering ||
@@ -3337,6 +3349,13 @@ function drawGroundWarningCircle(x, y, radius, colorPrefix, alpha, scaleX, scale
 }
 
 function drawBikeEnemy(enemy, scaleX, scaleY) {
+  if (drawEnemySprite(enemy, scaleX, scaleY)) {
+    if (enemy.warningTimer > 0) {
+      drawBikeCaution(enemy, scaleX, scaleY);
+    }
+    return;
+  }
+
   drawShadow(enemy, scaleX, scaleY);
   if (enemy.warningTimer > 0) {
     drawBikeCaution(enemy, scaleX, scaleY);

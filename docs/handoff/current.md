@@ -23,9 +23,9 @@ Copy and paste this into the next chat:
 - Workspace: `/Users/takedakouji/Documents/Belt scroll action`
 - GitHub: `https://github.com/petimaru/Belt-scroll-action.git`
 - Branch: `main`
-- Latest pushed commit: `67a12d3 Add player character selection`
+- Latest pushed commit: `7318591 Add enemy sprites and size tuning`
 - Local server command for iPhone testing: `python3 -m http.server 4174 --bind 0.0.0.0`
-- Current iPhone test URL at the time of writing: `http://192.168.0.49:4174/?v=67`
+- Current iPhone test URL at the time of writing: `http://192.168.0.49:4174/?v=68`
 - Known untracked folders:
   - `.playwright-cli/`
   - `output/`
@@ -35,7 +35,7 @@ Copy and paste this into the next chat:
 ## Important Working Rules
 
 - Do not use Playwright unless the user explicitly says to use Playwright.
-- For iPhone testing, update the URL cache buster such as `?v=67` when `index.html`, `main.js`, or `style.css` changes.
+- For iPhone testing, update the URL cache buster such as `?v=68` when `index.html`, `main.js`, or `style.css` changes.
 - If `index.html` references `style.css?v=N` and `main.js?v=N`, bump both numbers together after browser-facing changes.
 - Do not draw text inside a Canvas transform that flips enemies with `ctx.scale(enemy.facing, 1)`.
 - Boss labels such as `CHARGE`, `SHOCK`, `JUMP`, `KNIFE`, `SMASH`, and `GUARD` should stay unflipped.
@@ -188,8 +188,13 @@ Copy and paste this into the next chat:
   - `assets/sprites/enemy/general/gunner_shoot.png`
   - `assets/sprites/enemy/general/gunner_damage.png`
   - `assets/sprites/enemy/general/gunner_ko.png`
+  - `assets/sprites/enemy/general/bike_rusher_idle.png`
+  - `assets/sprites/enemy/general/bike_rusher_move.png`
+  - `assets/sprites/enemy/general/bike_rusher_damage.png`
+  - `assets/sprites/enemy/general/bike_rusher_ko.png`
 - Green `#11ef1a` style backgrounds were converted to transparency.
-- General enemies fall back to the old Canvas shapes if image loading fails.
+- General enemies and `bike_rusher` fall back to the old Canvas shapes if image loading fails.
+- `bike_rusher_idle.png` is used for the warning state; `bike_rusher_move.png` is used for the rush/attack state.
 - `sprite-height-compare.html` compares PETIMAN, ROOEEBEE, and current enemy idle/KO sizes with normal enemy and KO enemy sliders.
 - Enemy definitions in `ENEMY_SPRITE_DEFS` have separate `spriteHeight` and `koSpriteHeight` values.
 - `sprite-height-compare.html` now has per-enemy sliders for each normal sprite and each KO sprite.
@@ -198,6 +203,7 @@ Copy and paste this into the next chat:
   - `slow_puncher`: `spriteHeight: 139`, `koSpriteHeight: 86`
   - `knife_thrower`: `spriteHeight: 139`, `koSpriteHeight: 69`
   - `gunner`: `spriteHeight: 139`, `koSpriteHeight: 86`
+  - `bike_rusher`: `spriteHeight: 118`, `koSpriteHeight: 82`
 - Image-based general enemy HP bars are drawn near the feet so larger sprites do not cover the bar.
 
 ## Boss Schedule
@@ -294,7 +300,8 @@ This table controls both:
 - Added separate `koSpriteHeight` support for enemy KO images.
 - Applied tuned enemy sizes from comparison page: normal `139px`, KO `86px`, knife thrower KO `69px`.
 - Moved image-based general enemy HP bars from chest height to foot height.
-- Bumped browser cache references in `index.html` from `v=66` to `v=67`.
+- Added `bike_rusher` sprite replacement using `bike_rusher_idle/move/damage/ko.png`.
+- Bumped browser cache references in `index.html` from `v=67` to `v=68`.
 - Last verification before push:
   - `node --check main.js` passed.
   - `git diff --check` passed.
