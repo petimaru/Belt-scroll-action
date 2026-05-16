@@ -135,6 +135,7 @@ const PLAYER_CHARACTERS = {
       run1: "assets/sprites/player/petiman-run-1.png",
       run2: "assets/sprites/player/petiman-run-2.png",
       punch: "assets/sprites/player/petiman-punch.png",
+      lariat: "assets/sprites/player/petiman-lariat.png",
       jumpKick: "assets/sprites/player/petiman-high-kick.png",
       damage: "assets/sprites/player/petiman-damage.png",
       ko: "assets/sprites/player/petiman-ko.png",
@@ -157,6 +158,7 @@ const PLAYER_CHARACTERS = {
       run1: "assets/sprites/player/rooeeebee-run-1.png",
       run2: "assets/sprites/player/rooeeebee-run-2.png",
       punch: "assets/sprites/player/rooeeebee-punch.png",
+      lariat: "assets/sprites/player/rooeeebee-lariat.png",
       jumpKick: "assets/sprites/player/rooeeebee-high-kick.png",
       damage: "assets/sprites/player/rooeeebee-damage.png",
       ko: "assets/sprites/player/rooeeebee-ko.png",
@@ -267,6 +269,13 @@ const BOSS_AURA_SETTINGS = {
   intensity: 2.4,
   width: 188,
   height: 360,
+};
+const MID_BOSS_CHARGE_WALK_TRANSFORM = {
+  speed: 0.9,
+  bob: 1,
+  squash: 0.005,
+  sway: 1,
+  tilt: 0.25,
 };
 
 const BIKE_ENEMY = {
@@ -2849,6 +2858,7 @@ function getPlayerSpriteKey(player) {
   if (player.hp <= 0) return "ko";
   if (player.damageSpriteTimer > 0) return "damage";
   if (player.isJumping && player.jumpKickUsed) return "jumpKick";
+  if (isPlayerComboFinisherActive()) return "lariat";
   if (isPlayerAttackActive()) return "punch";
   if (!player.isJumping && Math.hypot(input.moveX, input.moveY) > 0.08) {
     return Math.floor(performance.now() / 140) % 2 === 0 ? "run1" : "run2";
@@ -2858,6 +2868,10 @@ function getPlayerSpriteKey(player) {
 
 function isPlayerAttackActive() {
   return state.attacks.some((attack) => attack.comboStep && attack.comboStep !== "K" && attack.age < attack.duration);
+}
+
+function isPlayerComboFinisherActive() {
+  return state.attacks.some((attack) => attack.comboStep === 3 && attack.age < attack.duration);
 }
 
 function drawPlayerSpriteOverlays(player) {
@@ -3024,6 +3038,7 @@ function drawEnemies(scaleX, scaleY) {
 }
 
 function drawEnemySprite(enemy, scaleX, scaleY, options = {}) {
+  updateEnemyVisualMovement(enemy);
   const spriteDefKey = getEnemySpriteDefKey(enemy);
   const enemyDef = ENEMY_SPRITE_DEFS[spriteDefKey];
   const sprites = enemySprites[spriteDefKey];
@@ -3043,10 +3058,16 @@ function drawEnemySprite(enemy, scaleX, scaleY, options = {}) {
     : enemyDef.spriteHeights?.[spriteKey] ?? enemyDef.spriteHeight;
   const source = getSpriteVisibleBounds(sprite);
   const spriteWidth = spriteHeight * (source.width / source.height);
+  const walkTransform = getEnemyWalkTransform(enemy, spriteKey);
 
   ctx.save();
   ctx.translate(enemy.x * scaleX, (enemy.y + yOffset) * scaleY);
   ctx.scale(scaleX * enemy.facing * visualScale, scaleY * visualScale);
+  if (walkTransform) {
+    ctx.translate(walkTransform.sway, walkTransform.bob);
+    ctx.rotate(walkTransform.tilt);
+    ctx.scale(walkTransform.scaleX, walkTransform.scaleY);
+  }
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(
     image,
@@ -3079,7 +3100,34 @@ function drawEnemySprite(enemy, scaleX, scaleY, options = {}) {
     ctx.fillRect(-hpWidth / 2, hpY, hpWidth * hpRatio, 7);
   }
   ctx.restore();
+  enemy.visualLastX = enemy.x;
+  enemy.visualLastY = enemy.y;
   return true;
+}
+
+function updateEnemyVisualMovement(enemy) {
+  if (enemy.visualLastX === undefined || enemy.visualLastY === undefined) {
+    enemy.isVisuallyMoving = false;
+    return;
+  }
+  enemy.isVisuallyMoving = Math.hypot(enemy.x - enemy.visualLastX, enemy.y - enemy.visualLastY) > 0.12;
+}
+
+function getEnemyWalkTransform(enemy, spriteKey) {
+  if (getEnemySpriteDefKey(enemy) !== "mid_boss_charge") return null;
+  if (spriteKey !== "move") return null;
+
+  const settings = MID_BOSS_CHARGE_WALK_TRANSFORM;
+  const phase = (performance.now() / 1000) * Math.PI * 2 * settings.speed;
+  const stretch = 1 + Math.cos(phase * 2) * settings.squash;
+  const squash = 1 - Math.cos(phase * 2) * settings.squash * 0.55;
+  return {
+    bob: Math.sin(phase) * settings.bob,
+    sway: Math.sin(phase) * settings.sway,
+    tilt: (Math.sin(phase) * settings.tilt * Math.PI) / 180,
+    scaleX: squash,
+    scaleY: stretch,
+  };
 }
 
 function getSpriteVisibleBounds(sprite) {
@@ -3130,6 +3178,7 @@ function getEnemySpriteKey(enemy) {
     if (enemy.attackType === "charge" && enemy.attackWindup > 0) return "chargeWindup";
     if (enemy.attackWindup > 0) return "attack1";
     if (enemy.attackActive > 0) return "attack2";
+    if (enemy.isVisuallyMoving || enemy.entering) return "move";
   }
   if (enemy.hitFlash > 0) return "damage";
   if (enemy.attackWindup > 0 || enemy.attackActive > 0 || enemy.throwWindup > 0 || enemy.shotWindup > 0) return "attack";

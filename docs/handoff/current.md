@@ -13,7 +13,7 @@ Copy and paste this into the next chat:
 
 まず現在のgit状態とローカルサーバー状態を確認してください。
 
-前回は、ゲーム本体のFlameオーラ描画を比較HTML側の表現に寄せ直し、SMASH溜め画像だけ `spriteHeights.attack1: 220` の個別サイズ補正を入れました。cache buster は v75。
+前回は、PETIMAN / ROOEEBEE の通常コンボ3発目だけラリアット画像を表示するようにしました。1〜2発目は既存punch画像のままです。cache buster は v77。
 
 次は画像差し替えの続きを進めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
 ```
@@ -24,8 +24,8 @@ Copy and paste this into the next chat:
 - GitHub: `https://github.com/petimaru/Belt-scroll-action.git`
 - Branch: `main`
 - Latest pushed commit before current local work: `d3486ec Add bike rusher sprites`
-- Current cache buster: `v=75`
-- iPhone test URL when server is running: `http://192.168.0.49:4174/?v=75`
+- Current cache buster: `v=77`
+- iPhone test URL when server is running: `http://192.168.0.49:4174/?v=77`
 - Local server command: `python3 -m http.server 4174 --bind 0.0.0.0`
 - Current server status at handoff update: running on port 4174
 - Known untracked folders:
@@ -60,6 +60,10 @@ Copy and paste this into the next chat:
   - ROOEEBEE KO image has a size override.
   - Respawn invincibility no longer forces the damage sprite for 3 seconds.
   - Normal damage briefly shows damage art, then returns to idle/move/attack art during remaining invincibility.
+  - Normal combo finisher, combo step 3, uses character-specific lariat art:
+    - `assets/sprites/player/petiman-lariat.png`
+    - `assets/sprites/player/rooeeebee-lariat.png`
+  - Combo damage, range, timing, and hit behavior were not changed.
 
 - General enemy sprites:
   - `slow_puncher`, `knife_thrower`, `gunner`, and `bike_rusher` now have PNG sprite replacements.
@@ -99,6 +103,17 @@ Copy and paste this into the next chat:
   - Current in-game aura style is `Flame columns`, controlled by `BOSS_AURA_STYLE = "flame"` in `main.js`.
   - Current in-game aura settings are `intensity: 2.4`, `width: 188`, `height: 360`.
   - The in-game Flame drawing was aligned with `boss-aura-compare.html`; earlier mismatch was because the compare page and game used different drawing functions.
+
+- Mid Boss A walk transform:
+  - Uses the existing single idle/move image; no new walk art is required for the actual game runtime.
+  - Applied only while the boss is visually moving and using the `move` sprite.
+  - Does not apply during attack, guard, damage, or KO states.
+  - Current values are in `MID_BOSS_CHARGE_WALK_TRANSFORM`:
+    - `speed: 0.9`
+    - `bob: 1`
+    - `squash: 0.005`
+    - `sway: 1`
+    - `tilt: 0.25`
   - `sprite-height-compare.html` includes three visual candidates:
     - Flame columns
     - Rising rings
@@ -231,7 +246,7 @@ python3 -m http.server 4174 --bind 0.0.0.0
 Then open:
 
 ```text
-http://192.168.0.49:4174/?v=75
+http://192.168.0.49:4174/?v=77
 ```
 
 Sprite comparison page:
@@ -259,7 +274,7 @@ git status --short --branch
 If server is running:
 
 ```sh
-curl -I 'http://127.0.0.1:4174/?v=75'
+curl -I 'http://127.0.0.1:4174/?v=77'
 curl -I 'http://127.0.0.1:4174/sprite-height-compare.html'
 curl -I 'http://127.0.0.1:4174/boss-aura-compare.html'
 curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_charge_idle.png'
@@ -282,7 +297,7 @@ curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/major_boss/major_boss_idle.s
 ## Suggested Next Steps
 
 - Continue image replacement in this order unless the user chooses otherwise:
-  1. Play-test Mid Boss A / charge with `spriteHeight: 172`, `koSpriteHeight: 140`, and tuned Flame columns aura.
+  1. Play-test Mid Boss A / charge with `spriteHeight: 172`, `koSpriteHeight: 140`, tuned Flame columns aura, and walk transform.
   2. Replace other mid boss variants with PNG art.
   3. Improve or replace major boss art.
   4. Background
