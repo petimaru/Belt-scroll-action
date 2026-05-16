@@ -72,6 +72,47 @@
           #2b3038;
       }
 
+      .aura-stage {
+        margin-top: 22px;
+        padding: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+        background: #252a31;
+      }
+
+      .aura-stage h2 {
+        margin: 0 0 14px;
+        color: #ffc857;
+        font-size: 16px;
+      }
+
+      .aura-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 16px;
+      }
+
+      .aura-card {
+        padding: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.2);
+      }
+
+      .aura-card h3 {
+        margin: 0 0 10px;
+        font-size: 14px;
+      }
+
+      .aura-canvas {
+        width: 100%;
+        max-width: 320px;
+        height: auto;
+        display: block;
+        margin: 0 auto;
+        image-rendering: pixelated;
+      }
+
       .ground {
         position: absolute;
         left: 0;
@@ -164,8 +205,26 @@
         <div id="row" class="row"></div>
       </section>
 
+      <section class="aura-stage">
+        <h2>Boss Aura Compare</h2>
+        <div class="aura-grid">
+          <article class="aura-card">
+            <h3>1. Flame columns</h3>
+            <canvas id="auraFlame" class="aura-canvas" width="320" height="260"></canvas>
+          </article>
+          <article class="aura-card">
+            <h3>2. Rising rings</h3>
+            <canvas id="auraRing" class="aura-canvas" width="320" height="260"></canvas>
+          </article>
+          <article class="aura-card">
+            <h3>3. Veil waves</h3>
+            <canvas id="auraVeil" class="aura-canvas" width="320" height="260"></canvas>
+          </article>
+        </div>
+      </section>
+
       <p class="note">
-        各敵の通常画像とKO画像を個別に調整できます。下の値を `main.js` の `ENEMY_SPRITE_DEFS` に反映します。
+        各敵の通常画像とKO画像を個別に調整できます。Boss Aura Compare は、上から黄色SMASH、赤CHARGE、青GUARDの見え方を比較します。下の値を `main.js` の `ENEMY_SPRITE_DEFS` に反映します。
       </p>
       <pre id="values" class="values"></pre>
     </main>
@@ -209,6 +268,46 @@
           height: 139,
         },
         {
+          name: "bike_rusher idle",
+          kind: "enemy",
+          enemy: "bike_rusher",
+          control: "bike_rusher",
+          path: "assets/sprites/enemy/general/bike_rusher_idle.png",
+          height: 118,
+        },
+        {
+          name: "mid boss idle",
+          kind: "enemy",
+          enemy: "mid_boss_brawler",
+          control: "mid_boss_brawler",
+          path: "assets/sprites/enemy/mid_boss/mid_boss_idle.svg",
+          height: 142,
+        },
+        {
+          name: "mid boss charge idle",
+          kind: "enemy",
+          enemy: "mid_boss_charge",
+          control: "mid_boss_charge",
+          path: "assets/sprites/enemy/mid_boss/mid_boss_charge_idle.png",
+          height: 172,
+        },
+        {
+          name: "mid boss charge SMASH",
+          kind: "enemy",
+          enemy: "mid_boss_charge_smash",
+          control: "mid_boss_charge_smash",
+          path: "assets/sprites/enemy/mid_boss/mid_boss_charge_attack1.png",
+          height: 220,
+        },
+        {
+          name: "major boss idle",
+          kind: "enemy",
+          enemy: "major_boss_brawler",
+          control: "major_boss_brawler",
+          path: "assets/sprites/enemy/major_boss/major_boss_idle.svg",
+          height: 150,
+        },
+        {
           name: "slow_puncher KO",
           kind: "enemy-ko",
           enemy: "slow_puncher",
@@ -232,6 +331,38 @@
           path: "assets/sprites/enemy/general/gunner_ko.png",
           height: 86,
         },
+        {
+          name: "bike_rusher KO",
+          kind: "enemy-ko",
+          enemy: "bike_rusher",
+          control: "bike_rusher_ko",
+          path: "assets/sprites/enemy/general/bike_rusher_ko.png",
+          height: 82,
+        },
+        {
+          name: "mid boss KO",
+          kind: "enemy-ko",
+          enemy: "mid_boss_brawler",
+          control: "mid_boss_brawler_ko",
+          path: "assets/sprites/enemy/mid_boss/mid_boss_ko.svg",
+          height: 88,
+        },
+        {
+          name: "mid boss charge KO",
+          kind: "enemy-ko",
+          enemy: "mid_boss_charge",
+          control: "mid_boss_charge_ko",
+          path: "assets/sprites/enemy/mid_boss/mid_boss_charge_ko.png",
+          height: 140,
+        },
+        {
+          name: "major boss KO",
+          kind: "enemy-ko",
+          enemy: "major_boss_brawler",
+          control: "major_boss_brawler_ko",
+          path: "assets/sprites/enemy/major_boss/major_boss_ko.svg",
+          height: 96,
+        },
       ];
 
       const row = document.querySelector("#row");
@@ -239,10 +370,20 @@
       const values = document.querySelector("#values");
       const loadedSprites = [];
       const sliders = {};
+      const auraCanvases = [
+        { id: "auraFlame", style: "flame" },
+        { id: "auraRing", style: "ring" },
+        { id: "auraVeil", style: "veil" },
+      ];
       const enemySettings = {
         slow_puncher: { spriteHeight: 139, koSpriteHeight: 86 },
         knife_thrower: { spriteHeight: 139, koSpriteHeight: 69 },
         gunner: { spriteHeight: 139, koSpriteHeight: 86 },
+        bike_rusher: { spriteHeight: 118, koSpriteHeight: 82 },
+        mid_boss_brawler: { spriteHeight: 142, koSpriteHeight: 88 },
+        mid_boss_charge: { spriteHeight: 172, koSpriteHeight: 140 },
+        mid_boss_charge_smash: { spriteHeight: 220, koSpriteHeight: 140 },
+        major_boss_brawler: { spriteHeight: 150, koSpriteHeight: 96 },
       };
 
       function loadImage(path) {
@@ -318,6 +459,135 @@
         item.meta.textContent = `${drawWidth} x ${drawHeight}px / scale ${scale.toFixed(2)}`;
       }
 
+      function drawAuraPreview(style, canvas, image, bounds) {
+        const context = canvas.getContext("2d");
+        context.imageSmoothingEnabled = false;
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = "#20242b";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.strokeStyle = "#ffc857";
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(0, 218);
+        context.lineTo(canvas.width, 218);
+        context.stroke();
+
+        const colors = [
+          { name: "SMASH", color: { r: 255, g: 200, b: 87 }, x: 72 },
+          { name: "CHARGE", color: { r: 255, g: 95, b: 79 }, x: 160 },
+          { name: "GUARD", color: { r: 121, g: 215, b: 255 }, x: 248 },
+        ];
+        colors.forEach((entry, index) => {
+          const drawHeight = 128;
+          const drawWidth = Math.round(drawHeight * (bounds.width / bounds.height));
+          const x = entry.x;
+          const y = 218;
+          drawPreviewAura(context, style, x, y, 80, 146, entry.color, index);
+          context.drawImage(
+            image,
+            bounds.x,
+            bounds.y,
+            bounds.width,
+            bounds.height,
+            x - drawWidth / 2,
+            y - drawHeight,
+            drawWidth,
+            drawHeight,
+          );
+        });
+      }
+
+      function drawPreviewAura(context, style, x, y, width, height, color, seed) {
+        context.save();
+        context.globalCompositeOperation = "screen";
+        if (style === "ring") {
+          drawPreviewRingAura(context, x, y, width, height, color, seed);
+        } else if (style === "veil") {
+          drawPreviewVeilAura(context, x, y, width, height, color, seed);
+        } else {
+          drawPreviewFlameAura(context, x, y, width, height, color, seed);
+        }
+        context.restore();
+      }
+
+      function previewColor(color, alpha) {
+        return `rgba(${color.r}, ${color.g}, ${color.b}, ${alpha})`;
+      }
+
+      function drawPreviewFlameAura(context, x, y, width, height, color, seed) {
+        const gradient = context.createRadialGradient(x, y - height * 0.42, width * 0.1, x, y - height * 0.42, width * 0.82);
+        gradient.addColorStop(0, previewColor(color, 0.2));
+        gradient.addColorStop(0.58, previewColor(color, 0.1));
+        gradient.addColorStop(1, previewColor(color, 0));
+        context.fillStyle = gradient;
+        context.beginPath();
+        context.ellipse(x, y - height * 0.42, width * 0.74, height * 0.52, 0, 0, Math.PI * 2);
+        context.fill();
+
+        context.lineCap = "round";
+        for (let i = 0; i < 7; i += 1) {
+          const t = i / 6;
+          const drift = Math.sin(seed + i * 1.7) * width * 0.1;
+          const startX = x + (t - 0.5) * width * 0.72 + drift * 0.4;
+          const endY = y - height * (0.5 + 0.28 * Math.abs(Math.sin(seed + i)));
+          context.strokeStyle = previewColor(color, 0.24);
+          context.lineWidth = 4 + (i % 3) * 2;
+          context.beginPath();
+          context.moveTo(startX, y - 5);
+          context.quadraticCurveTo(startX + drift * 1.6, (y + endY) / 2, startX + drift, endY);
+          context.stroke();
+        }
+      }
+
+      function drawPreviewRingAura(context, x, y, width, height, color, seed) {
+        context.lineWidth = 4;
+        for (let i = 0; i < 4; i += 1) {
+          const rise = ((i + seed * 0.23) % 4) / 4;
+          const ringY = y - rise * height;
+          const ringW = width * (0.38 + rise * 0.38);
+          context.strokeStyle = previewColor(color, 0.24 * (1 - rise) + 0.05);
+          context.beginPath();
+          context.ellipse(x, ringY, ringW, ringW * 0.2, 0, 0, Math.PI * 2);
+          context.stroke();
+        }
+
+        const glow = context.createLinearGradient(x, y, x, y - height);
+        glow.addColorStop(0, previewColor(color, 0.18));
+        glow.addColorStop(0.7, previewColor(color, 0.08));
+        glow.addColorStop(1, previewColor(color, 0));
+        context.fillStyle = glow;
+        context.beginPath();
+        context.ellipse(x, y - height * 0.42, width * 0.56, height * 0.52, 0, 0, Math.PI * 2);
+        context.fill();
+      }
+
+      function drawPreviewVeilAura(context, x, y, width, height, color, seed) {
+        const gradient = context.createLinearGradient(x, y, x, y - height);
+        gradient.addColorStop(0, previewColor(color, 0.2));
+        gradient.addColorStop(0.5, previewColor(color, 0.1));
+        gradient.addColorStop(1, previewColor(color, 0));
+        context.fillStyle = gradient;
+        context.beginPath();
+        context.moveTo(x - width * 0.54, y);
+        for (let i = 0; i <= 6; i += 1) {
+          const t = i / 6;
+          const wave = Math.sin(seed + i * 1.3) * width * 0.08;
+          context.lineTo(x - width * 0.42 + t * width * 0.84 + wave, y - height * (0.18 + t * 0.74));
+        }
+        context.lineTo(x + width * 0.54, y);
+        context.closePath();
+        context.fill();
+
+        context.strokeStyle = previewColor(color, 0.22);
+        context.lineWidth = 3;
+        context.beginPath();
+        context.moveTo(x - width * 0.5, y - height * 0.08);
+        context.bezierCurveTo(x - width * 0.64, y - height * 0.5, x - width * 0.18, y - height * 0.7, x - width * 0.3, y - height);
+        context.moveTo(x + width * 0.5, y - height * 0.08);
+        context.bezierCurveTo(x + width * 0.64, y - height * 0.5, x + width * 0.18, y - height * 0.7, x + width * 0.3, y - height);
+        context.stroke();
+      }
+
       function update() {
         Object.values(sliders).forEach(({ input, value }) => {
           value.textContent = `${input.value}px`;
@@ -365,6 +635,8 @@
 
       async function init() {
         createControls();
+        let auraImage = null;
+        let auraBounds = null;
         for (const sprite of sprites) {
           const image = await loadImage(sprite.path);
           const card = document.createElement("div");
@@ -386,6 +658,15 @@
             canvas,
             meta,
             bounds: getVisibleBounds(image),
+          });
+          if (sprite.enemy === "mid_boss_charge" && sprite.kind === "enemy") {
+            auraImage = image;
+            auraBounds = getVisibleBounds(image);
+          }
+        }
+        if (auraImage && auraBounds) {
+          auraCanvases.forEach(({ id, style }) => {
+            drawAuraPreview(style, document.querySelector(`#${id}`), auraImage, auraBounds);
           });
         }
         update();

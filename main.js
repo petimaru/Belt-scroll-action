@@ -216,11 +216,58 @@ const ENEMY_SPRITE_DEFS = {
       ko: "assets/sprites/enemy/general/bike_rusher_ko.png",
     },
   },
+  mid_boss_brawler: {
+    spriteHeight: 142,
+    koSpriteHeight: 88,
+    footOffsetY: 34,
+    sprites: {
+      idle: "assets/sprites/enemy/mid_boss/mid_boss_idle.svg",
+      attack: "assets/sprites/enemy/mid_boss/mid_boss_attack.svg",
+      damage: "assets/sprites/enemy/mid_boss/mid_boss_damage.svg",
+      ko: "assets/sprites/enemy/mid_boss/mid_boss_ko.svg",
+    },
+  },
+  mid_boss_charge: {
+    spriteHeight: 172,
+    koSpriteHeight: 140,
+    spriteHeights: {
+      attack1: 220,
+    },
+    footOffsetY: 28,
+    sprites: {
+      idle: "assets/sprites/enemy/mid_boss/mid_boss_charge_idle.png",
+      move: "assets/sprites/enemy/mid_boss/mid_boss_charge_move.png",
+      attack1: "assets/sprites/enemy/mid_boss/mid_boss_charge_attack1.png",
+      attack2: "assets/sprites/enemy/mid_boss/mid_boss_charge_attack2.png",
+      chargeWindup: "assets/sprites/enemy/mid_boss/mid_boss_charge_charge_windup.png",
+      charge: "assets/sprites/enemy/mid_boss/mid_boss_charge_charge.png",
+      guard: "assets/sprites/enemy/mid_boss/mid_boss_charge_guard.png",
+      damage: "assets/sprites/enemy/mid_boss/mid_boss_charge_damage.png",
+      ko: "assets/sprites/enemy/mid_boss/mid_boss_charge_ko.png",
+    },
+  },
+  major_boss_brawler: {
+    spriteHeight: 150,
+    koSpriteHeight: 96,
+    footOffsetY: 36,
+    sprites: {
+      idle: "assets/sprites/enemy/major_boss/major_boss_idle.svg",
+      attack: "assets/sprites/enemy/major_boss/major_boss_attack.svg",
+      damage: "assets/sprites/enemy/major_boss/major_boss_damage.svg",
+      ko: "assets/sprites/enemy/major_boss/major_boss_ko.svg",
+    },
+  },
 };
 const enemySprites = Object.fromEntries(
   Object.entries(ENEMY_SPRITE_DEFS).map(([key, enemyDef]) => [key, loadSpriteImages(enemyDef.sprites)]),
 );
 const ENEMY_KO_DISPLAY_TIME = 0.75;
+const BOSS_AURA_STYLE = "flame";
+const BOSS_AURA_SETTINGS = {
+  intensity: 2.4,
+  width: 188,
+  height: 360,
+};
 
 const BIKE_ENEMY = {
   warningTime: 1.45,
@@ -2092,7 +2139,6 @@ function updateProjectiles(dt) {
         });
         addSpecialGauge(6);
         addFloatingText(enemy.x, enemy.y - 72, `-${bossDefense.damage}`, "#fff1be");
-        if (bossDefense.type === "guard") addFloatingText(enemy.x, enemy.y - 108, "GUARD", "#79d7ff");
         if (bossDefense.type === "back") addFloatingText(enemy.x, enemy.y - 108, "BACK HIT!", "#ffc857");
       });
     }
@@ -2432,7 +2478,6 @@ function updateAttacks(dt) {
       });
       addSpecialGauge(isRadialAttack ? 0 : isFinisher ? 7 : 4);
       addFloatingText(enemy.x, enemy.y - 70, `-${bossDefense.damage}`, "#fff1be");
-      if (bossDefense.type === "guard") addFloatingText(enemy.x, enemy.y - 106, "GUARD", "#79d7ff");
       if (bossDefense.type === "back") addFloatingText(enemy.x, enemy.y - 106, "BACK HIT!", "#ffc857");
       if (isFinisher && !isRadialAttack) {
         addFloatingText(enemy.x, enemy.y - 116, attack.comboStep === "K" ? "JUMP KICK!" : "KNOCK!", "#79d7ff");
@@ -2978,24 +3023,30 @@ function drawEnemies(scaleX, scaleY) {
   });
 }
 
-function drawEnemySprite(enemy, scaleX, scaleY) {
-  const enemyDef = ENEMY_SPRITE_DEFS[enemy.type];
-  const sprites = enemySprites[enemy.type];
+function drawEnemySprite(enemy, scaleX, scaleY, options = {}) {
+  const spriteDefKey = getEnemySpriteDefKey(enemy);
+  const enemyDef = ENEMY_SPRITE_DEFS[spriteDefKey];
+  const sprites = enemySprites[spriteDefKey];
   if (!enemyDef || !sprites) return false;
 
+  const drawHpBar = options.drawHpBar ?? true;
+  const yOffset = options.yOffset ?? 0;
+  const visualScale = options.visualScale ?? 1;
   const spriteKey = getEnemySpriteKey(enemy);
   const sprite = sprites[spriteKey] ?? sprites.idle;
   if (!sprite?.loaded || sprite.failed) return false;
 
   drawShadow(enemy, scaleX, scaleY);
   const image = sprite.image;
-  const spriteHeight = spriteKey === "ko" ? enemyDef.koSpriteHeight ?? enemyDef.spriteHeight : enemyDef.spriteHeight;
+  const spriteHeight = spriteKey === "ko"
+    ? enemyDef.koSpriteHeight ?? enemyDef.spriteHeight
+    : enemyDef.spriteHeights?.[spriteKey] ?? enemyDef.spriteHeight;
   const source = getSpriteVisibleBounds(sprite);
   const spriteWidth = spriteHeight * (source.width / source.height);
 
   ctx.save();
-  ctx.translate(enemy.x * scaleX, enemy.y * scaleY);
-  ctx.scale(scaleX * enemy.facing, scaleY);
+  ctx.translate(enemy.x * scaleX, (enemy.y + yOffset) * scaleY);
+  ctx.scale(scaleX * enemy.facing * visualScale, scaleY * visualScale);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(
     image,
@@ -3018,13 +3069,15 @@ function drawEnemySprite(enemy, scaleX, scaleY) {
     ctx.stroke();
   }
 
-  const hpWidth = 58;
-  const hpY = 22;
-  const hpRatio = Math.max(0, enemy.hp / enemy.maxHp);
-  ctx.fillStyle = "rgba(0, 0, 0, 0.44)";
-  ctx.fillRect(-hpWidth / 2, hpY, hpWidth, 7);
-  ctx.fillStyle = "#ffcf5a";
-  ctx.fillRect(-hpWidth / 2, hpY, hpWidth * hpRatio, 7);
+  if (drawHpBar) {
+    const hpWidth = 58;
+    const hpY = 22;
+    const hpRatio = Math.max(0, enemy.hp / enemy.maxHp);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.44)";
+    ctx.fillRect(-hpWidth / 2, hpY, hpWidth, 7);
+    ctx.fillStyle = "#ffcf5a";
+    ctx.fillRect(-hpWidth / 2, hpY, hpWidth * hpRatio, 7);
+  }
   ctx.restore();
   return true;
 }
@@ -3062,10 +3115,23 @@ function getSpriteVisibleBounds(sprite) {
   return sprite.visibleBounds;
 }
 
+function getEnemySpriteDefKey(enemy) {
+  if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "charge") return "mid_boss_charge";
+  return enemy.type;
+}
+
 function getEnemySpriteKey(enemy) {
   if (enemy.hp <= 0) return "ko";
-  if (enemy.hitFlash > 0) return "damage";
   if (enemy.type === "bike_rusher") return enemy.warningTimer > 0 ? "idle" : "move";
+  if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "charge") {
+    if (enemy.guardTimer > 0) return "guard";
+    if (enemy.hitFlash > 0) return "damage";
+    if (enemy.attackType === "charge" && enemy.attackActive > 0) return "charge";
+    if (enemy.attackType === "charge" && enemy.attackWindup > 0) return "chargeWindup";
+    if (enemy.attackWindup > 0) return "attack1";
+    if (enemy.attackActive > 0) return "attack2";
+  }
+  if (enemy.hitFlash > 0) return "damage";
   if (enemy.attackWindup > 0 || enemy.attackActive > 0 || enemy.throwWindup > 0 || enemy.shotWindup > 0) return "attack";
   if (
     enemy.entering ||
@@ -3219,6 +3285,11 @@ function drawBossHud(scaleX, scaleY) {
 function drawMidBossEnemy(enemy, scaleX, scaleY) {
   const visualScale = enemy.visualScale ?? 1;
   drawMidBossWarning(enemy, scaleX, scaleY);
+  drawBossAura(enemy, scaleX, scaleY);
+  if (drawEnemySprite(enemy, scaleX, scaleY, { drawHpBar: false, yOffset: -enemy.visualJumpHeight, visualScale })) {
+    return;
+  }
+
   drawShadow(enemy, scaleX, scaleY);
   ctx.save();
   ctx.translate(enemy.x * scaleX, (enemy.y - enemy.visualJumpHeight) * scaleY);
@@ -3287,11 +3358,139 @@ function drawMidBossEnemy(enemy, scaleX, scaleY) {
 
   ctx.restore();
 
-  if (enemy.guardTimer > 0) {
-    drawEnemyWindupLabel(enemy, "GUARD", "#79d7ff", scaleX, scaleY);
-  } else if (enemy.attackWindup > 0) {
-    drawEnemyWindupLabel(enemy, getMidBossAttackLabel(enemy), getMidBossAttackLabelColor(enemy), scaleX, scaleY);
+}
+
+function drawBossAura(enemy, scaleX, scaleY, style = BOSS_AURA_STYLE) {
+  const aura = getBossAuraState(enemy);
+  if (!aura) return;
+
+  const time = performance.now() / 1000;
+  const visualScale = enemy.visualScale ?? 1;
+  const baseY = enemy.y - enemy.visualJumpHeight;
+  const auraHeight = BOSS_AURA_SETTINGS.height * visualScale;
+  const auraWidth = BOSS_AURA_SETTINGS.width * visualScale;
+  const pulse = 0.78 + Math.sin(time * 8.2) * 0.16;
+  const x = enemy.x * scaleX;
+  const y = baseY * scaleY;
+  const width = auraWidth * scaleX;
+  const height = auraHeight * scaleY;
+  const color = aura.color;
+
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  if (style === "ring") {
+    drawBossRingAura(x, y, width, height, color, pulse, time);
+  } else if (style === "veil") {
+    drawBossVeilAura(x, y, width, height, color, pulse, time);
+  } else {
+    drawBossFlameAura(x, y, width, height, color, pulse, time, BOSS_AURA_SETTINGS.intensity);
   }
+  ctx.restore();
+}
+
+function getBossAuraState(enemy) {
+  if (enemy.guardTimer > 0) {
+    return { color: { r: 121, g: 215, b: 255 } };
+  }
+  if (enemy.attackWindup > 0 || enemy.attackActive > 0) {
+    if (enemy.attackType === "charge") return { color: { r: 255, g: 95, b: 79 } };
+    return { color: { r: 255, g: 200, b: 87 } };
+  }
+  return null;
+}
+
+function auraColor(color, alpha) {
+  return `rgba(${color.r}, ${color.g}, ${color.b}, ${alpha})`;
+}
+
+function drawBossFlameAura(x, y, width, height, color, pulse, time, intensity = 1) {
+  const gradient = ctx.createRadialGradient(x, y - height * 0.35, width * 0.08, x, y - height * 0.36, width * 0.82);
+  gradient.addColorStop(0, auraColor(color, Math.min(0.42, 0.16 * intensity) * pulse));
+  gradient.addColorStop(0.5, auraColor(color, Math.min(0.28, 0.1 * intensity) * pulse));
+  gradient.addColorStop(1, auraColor(color, 0));
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.ellipse(x, y - height * 0.34, width * 0.7, height * 0.48, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const core = ctx.createLinearGradient(x, y, x, y - height);
+  core.addColorStop(0, auraColor(color, Math.min(0.46, 0.24 * intensity) * pulse));
+  core.addColorStop(0.26, auraColor({ r: 255, g: 255, b: 245 }, Math.min(0.42, 0.22 * intensity) * pulse));
+  core.addColorStop(0.72, auraColor(color, Math.min(0.22, 0.12 * intensity) * pulse));
+  core.addColorStop(1, auraColor(color, 0));
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.moveTo(x - width * 0.18, y);
+  ctx.bezierCurveTo(x - width * 0.34, y - height * 0.24, x - width * 0.1, y - height * 0.48, x - width * 0.04, y - height);
+  ctx.bezierCurveTo(x + width * 0.1, y - height * 0.56, x + width * 0.34, y - height * 0.28, x + width * 0.18, y);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.lineCap = "round";
+  for (let i = 0; i < 15; i += 1) {
+    const t = i / 14;
+    const side = t - 0.5;
+    const bend = Math.sin(time * 4.4 + i * 1.9) * width * 0.1;
+    const startX = x + side * width * 0.86;
+    const endX = x + side * width * (0.18 + Math.abs(side) * 0.35) + bend;
+    const endY = y - height * (0.38 + 0.55 * Math.abs(Math.sin(time * 1.7 + i * 0.73)));
+    const alpha = Math.min(0.38, (0.1 + 0.06 * (i % 3)) * intensity) * pulse;
+    ctx.strokeStyle = auraColor(i % 4 === 0 ? { r: 255, g: 255, b: 245 } : color, alpha);
+    ctx.lineWidth = (3 + (i % 4) * 1.6) * pulse;
+    ctx.beginPath();
+    ctx.moveTo(startX, y - 4);
+    ctx.bezierCurveTo(startX + bend * 0.8, y - height * 0.25, endX - bend * 0.35, y - height * 0.58, endX, endY);
+    ctx.stroke();
+  }
+}
+
+function drawBossRingAura(x, y, width, height, color, pulse, time) {
+  ctx.lineWidth = 4 * pulse;
+  for (let i = 0; i < 4; i += 1) {
+    const rise = ((time * 0.9 + i / 4) % 1);
+    const ringY = y - rise * height;
+    const ringW = width * (0.38 + rise * 0.38);
+    ctx.strokeStyle = auraColor(color, (0.24 * (1 - rise) + 0.05) * pulse);
+    ctx.beginPath();
+    ctx.ellipse(x, ringY, ringW, ringW * 0.2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  const glow = ctx.createLinearGradient(x, y, x, y - height);
+  glow.addColorStop(0, auraColor(color, 0.18 * pulse));
+  glow.addColorStop(0.7, auraColor(color, 0.08 * pulse));
+  glow.addColorStop(1, auraColor(color, 0));
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.ellipse(x, y - height * 0.42, width * 0.56, height * 0.52, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBossVeilAura(x, y, width, height, color, pulse, time) {
+  const gradient = ctx.createLinearGradient(x, y, x, y - height);
+  gradient.addColorStop(0, auraColor(color, 0.2 * pulse));
+  gradient.addColorStop(0.5, auraColor(color, 0.1 * pulse));
+  gradient.addColorStop(1, auraColor(color, 0));
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.moveTo(x - width * 0.54, y);
+  for (let i = 0; i <= 6; i += 1) {
+    const t = i / 6;
+    const wave = Math.sin(time * 5 + i * 1.3) * width * 0.08;
+    ctx.lineTo(x - width * 0.42 + t * width * 0.84 + wave, y - height * (0.18 + t * 0.74));
+  }
+  ctx.lineTo(x + width * 0.54, y);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = auraColor(color, 0.22 * pulse);
+  ctx.lineWidth = 3 * pulse;
+  ctx.beginPath();
+  ctx.moveTo(x - width * 0.5, y - height * 0.08);
+  ctx.bezierCurveTo(x - width * 0.64, y - height * 0.5, x - width * 0.18, y - height * 0.7, x - width * 0.3, y - height);
+  ctx.moveTo(x + width * 0.5, y - height * 0.08);
+  ctx.bezierCurveTo(x + width * 0.64, y - height * 0.5, x + width * 0.18, y - height * 0.7, x + width * 0.3, y - height);
+  ctx.stroke();
 }
 
 function getMidBossBodyColor(enemy) {
