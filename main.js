@@ -248,6 +248,25 @@ const ENEMY_SPRITE_DEFS = {
       ko: "assets/sprites/enemy/mid_boss/mid_boss_charge_ko.png",
     },
   },
+  mid_boss_shock: {
+    spriteHeight: 172,
+    koSpriteHeight: 140,
+    spriteHeights: {
+      windup: 188,
+      shock: 190,
+    },
+    footOffsetY: 28,
+    sprites: {
+      idle: "assets/sprites/enemy/mid_boss/mid_boss_shock_idle.png",
+      move: "assets/sprites/enemy/mid_boss/mid_boss_shock_move.png",
+      windup: "assets/sprites/enemy/mid_boss/mid_boss_shock_windup.png",
+      attack: "assets/sprites/enemy/mid_boss/mid_boss_shock_attack.png",
+      shock: "assets/sprites/enemy/mid_boss/mid_boss_shock_shock.png",
+      guard: "assets/sprites/enemy/mid_boss/mid_boss_shock_guard.png",
+      damage: "assets/sprites/enemy/mid_boss/mid_boss_shock_damage.png",
+      ko: "assets/sprites/enemy/mid_boss/mid_boss_shock_ko.png",
+    },
+  },
   major_boss_brawler: {
     spriteHeight: 150,
     koSpriteHeight: 96,
@@ -276,6 +295,12 @@ const MID_BOSS_CHARGE_WALK_TRANSFORM = {
   squash: 0.005,
   sway: 1,
   tilt: 0.25,
+};
+const MID_BOSS_SHOCK_WINDMILL = {
+  frameMs: 60,
+  spin: 5,
+  slide: 7,
+  squash: 0.005,
 };
 
 const BIKE_ENEMY = {
@@ -3059,6 +3084,7 @@ function drawEnemySprite(enemy, scaleX, scaleY, options = {}) {
   const source = getSpriteVisibleBounds(sprite);
   const spriteWidth = spriteHeight * (source.width / source.height);
   const walkTransform = getEnemyWalkTransform(enemy, spriteKey);
+  const windmillTransform = getEnemyWindmillTransform(enemy, spriteKey);
 
   ctx.save();
   ctx.translate(enemy.x * scaleX, (enemy.y + yOffset) * scaleY);
@@ -3067,6 +3093,11 @@ function drawEnemySprite(enemy, scaleX, scaleY, options = {}) {
     ctx.translate(walkTransform.sway, walkTransform.bob);
     ctx.rotate(walkTransform.tilt);
     ctx.scale(walkTransform.scaleX, walkTransform.scaleY);
+  }
+  if (windmillTransform) {
+    ctx.translate(windmillTransform.slide, 0);
+    ctx.rotate(windmillTransform.rotate);
+    ctx.scale(windmillTransform.flip * windmillTransform.scaleX, windmillTransform.scaleY);
   }
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(
@@ -3114,7 +3145,8 @@ function updateEnemyVisualMovement(enemy) {
 }
 
 function getEnemyWalkTransform(enemy, spriteKey) {
-  if (getEnemySpriteDefKey(enemy) !== "mid_boss_charge") return null;
+  const spriteDefKey = getEnemySpriteDefKey(enemy);
+  if (spriteDefKey !== "mid_boss_charge" && spriteDefKey !== "mid_boss_shock") return null;
   if (spriteKey !== "move") return null;
 
   const settings = MID_BOSS_CHARGE_WALK_TRANSFORM;
@@ -3127,6 +3159,25 @@ function getEnemyWalkTransform(enemy, spriteKey) {
     tilt: (Math.sin(phase) * settings.tilt * Math.PI) / 180,
     scaleX: squash,
     scaleY: stretch,
+  };
+}
+
+function getEnemyWindmillTransform(enemy, spriteKey) {
+  if (getEnemySpriteDefKey(enemy) !== "mid_boss_shock") return null;
+  if (spriteKey !== "shock") return null;
+
+  const settings = MID_BOSS_SHOCK_WINDMILL;
+  const frame = Math.floor(performance.now() / settings.frameMs) % 4;
+  const frames = [
+    { rotate: -settings.spin, slide: -settings.slide, scaleX: 1 + settings.squash, scaleY: 1 - settings.squash * 0.55, flip: 1 },
+    { rotate: 0, slide: 0, scaleX: 1, scaleY: 1 + settings.squash, flip: -1 },
+    { rotate: settings.spin, slide: settings.slide, scaleX: 1 + settings.squash, scaleY: 1 - settings.squash * 0.55, flip: 1 },
+    { rotate: 0, slide: 0, scaleX: 1 - settings.squash * 0.45, scaleY: 1 + settings.squash * 0.7, flip: -1 },
+  ];
+  const transform = frames[frame];
+  return {
+    ...transform,
+    rotate: (transform.rotate * Math.PI) / 180,
   };
 }
 
@@ -3165,6 +3216,7 @@ function getSpriteVisibleBounds(sprite) {
 
 function getEnemySpriteDefKey(enemy) {
   if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "charge") return "mid_boss_charge";
+  if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "shock") return "mid_boss_shock";
   return enemy.type;
 }
 
@@ -3178,6 +3230,14 @@ function getEnemySpriteKey(enemy) {
     if (enemy.attackType === "charge" && enemy.attackWindup > 0) return "chargeWindup";
     if (enemy.attackWindup > 0) return "attack1";
     if (enemy.attackActive > 0) return "attack2";
+    if (enemy.isVisuallyMoving || enemy.entering) return "move";
+  }
+  if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "shock") {
+    if (enemy.guardTimer > 0) return "guard";
+    if (enemy.hitFlash > 0) return "damage";
+    if (enemy.attackType === "shock" && enemy.attackActive > 0) return "shock";
+    if (enemy.attackWindup > 0) return "windup";
+    if (enemy.attackActive > 0) return "attack";
     if (enemy.isVisuallyMoving || enemy.entering) return "move";
   }
   if (enemy.hitFlash > 0) return "damage";
@@ -3442,7 +3502,7 @@ function getBossAuraState(enemy) {
     return { color: { r: 121, g: 215, b: 255 } };
   }
   if (enemy.attackWindup > 0 || enemy.attackActive > 0) {
-    if (enemy.attackType === "charge") return { color: { r: 255, g: 95, b: 79 } };
+    if (enemy.attackType === "charge" || enemy.attackType === "shock") return { color: { r: 255, g: 95, b: 79 } };
     return { color: { r: 255, g: 200, b: 87 } };
   }
   return null;

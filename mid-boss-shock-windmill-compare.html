@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mid Boss Shock Windmill Compare</title>
+    <style>
+      :root {
+        color: #f7f1df;
+        background: #20242b;
+        font-family: Trebuchet MS, system-ui, sans-serif;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+      }
+
+      main {
+        max-width: 1160px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        margin: 0 0 16px;
+        font-size: 24px;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 330px 1fr;
+        gap: 18px;
+      }
+
+      .panel,
+      .stage {
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.22);
+      }
+
+      .panel {
+        padding: 16px;
+      }
+
+      .control {
+        margin-bottom: 16px;
+      }
+
+      label {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 8px;
+        font-weight: 900;
+      }
+
+      input[type="range"] {
+        width: 100%;
+      }
+
+      .stage {
+        min-height: 560px;
+        overflow: hidden;
+        background:
+          linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px) 0 0 / 46px 46px,
+          linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 46px 46px,
+          #2b3038;
+      }
+
+      canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        image-rendering: pixelated;
+      }
+
+      .values {
+        white-space: pre-wrap;
+        margin: 16px 0 0;
+        padding: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.24);
+        color: #f7f1df;
+        font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      .note {
+        margin: 14px 0 0;
+        color: #cbd6df;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      @media (max-width: 820px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Mid Boss Shock Windmill Compare</h1>
+      <div class="layout">
+        <section class="panel">
+          <div class="control">
+            <label for="spriteHeight">
+              <span>表示高さ</span>
+              <span id="heightValue"></span>
+            </label>
+            <input id="spriteHeight" type="range" min="130" max="260" step="1" value="190" />
+          </div>
+
+          <div class="control">
+            <label for="frameMs">
+              <span>フレーム間隔</span>
+              <span id="frameMsValue"></span>
+            </label>
+            <input id="frameMs" type="range" min="50" max="220" step="10" value="90" />
+          </div>
+
+          <div class="control">
+            <label for="spin">
+              <span>回転量</span>
+              <span id="spinValue"></span>
+            </label>
+            <input id="spin" type="range" min="0" max="28" step="1" value="14" />
+          </div>
+
+          <div class="control">
+            <label for="slide">
+              <span>横スライド</span>
+              <span id="slideValue"></span>
+            </label>
+            <input id="slide" type="range" min="0" max="42" step="1" value="22" />
+          </div>
+
+          <div class="control">
+            <label for="squash">
+              <span>伸び縮み</span>
+              <span id="squashValue"></span>
+            </label>
+            <input id="squash" type="range" min="0" max="0.18" step="0.005" value="0.075" />
+          </div>
+
+          <pre id="values" class="values"></pre>
+          <p class="note">
+            `mid_boss_shock_shock.png` 1枚だけをCanvas変形して、4枚アニメ風に見せる実験ページです。ゲーム本体にはまだ組み込んでいません。
+          </p>
+        </section>
+
+        <section class="stage">
+          <canvas id="preview" width="820" height="560"></canvas>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const imagePath = "assets/sprites/enemy/mid_boss/mid_boss_shock_shock.png";
+      const canvas = document.querySelector("#preview");
+      const context = canvas.getContext("2d");
+      const image = new Image();
+      const controls = {
+        spriteHeight: document.querySelector("#spriteHeight"),
+        frameMs: document.querySelector("#frameMs"),
+        spin: document.querySelector("#spin"),
+        slide: document.querySelector("#slide"),
+        squash: document.querySelector("#squash"),
+      };
+      const labels = {
+        spriteHeight: document.querySelector("#heightValue"),
+        frameMs: document.querySelector("#frameMsValue"),
+        spin: document.querySelector("#spinValue"),
+        slide: document.querySelector("#slideValue"),
+        squash: document.querySelector("#squashValue"),
+      };
+      const values = document.querySelector("#values");
+      let bounds = null;
+      let currentFrame = 0;
+      let lastFrameAt = performance.now();
+
+      function getVisibleBounds(sourceImage) {
+        const scratch = document.createElement("canvas");
+        scratch.width = sourceImage.naturalWidth;
+        scratch.height = sourceImage.naturalHeight;
+        const scratchContext = scratch.getContext("2d", { willReadFrequently: true });
+        scratchContext.drawImage(sourceImage, 0, 0);
+        const { data, width, height } = scratchContext.getImageData(0, 0, scratch.width, scratch.height);
+        let minX = width;
+        let minY = height;
+        let maxX = -1;
+        let maxY = -1;
+        for (let y = 0; y < height; y += 1) {
+          for (let x = 0; x < width; x += 1) {
+            const alpha = data[(y * width + x) * 4 + 3];
+            if (alpha <= 8) continue;
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          }
+        }
+        return maxX < 0
+          ? { x: 0, y: 0, width: sourceImage.naturalWidth, height: sourceImage.naturalHeight }
+          : { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
+      }
+
+      function readSettings() {
+        return {
+          spriteHeight: Number(controls.spriteHeight.value),
+          frameMs: Number(controls.frameMs.value),
+          spin: Number(controls.spin.value),
+          slide: Number(controls.slide.value),
+          squash: Number(controls.squash.value),
+        };
+      }
+
+      function drawGround() {
+        context.fillStyle = "#2b3038";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.strokeStyle = "#ffc857";
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(0, 426);
+        context.lineTo(canvas.width, 426);
+        context.stroke();
+
+        context.save();
+        context.globalAlpha = 0.18;
+        context.strokeStyle = "#c48cff";
+        context.lineWidth = 3;
+        context.beginPath();
+        context.ellipse(410, 424, 150, 44, 0, 0, Math.PI * 2);
+        context.stroke();
+        context.restore();
+      }
+
+      function drawSprite(frame, settings) {
+        const frameOffsets = [
+          { rotate: -settings.spin, slide: -settings.slide, scaleX: 1 + settings.squash, scaleY: 1 - settings.squash * 0.55, flip: 1 },
+          { rotate: 0, slide: 0, scaleX: 1, scaleY: 1 + settings.squash, flip: -1 },
+          { rotate: settings.spin, slide: settings.slide, scaleX: 1 + settings.squash, scaleY: 1 - settings.squash * 0.55, flip: 1 },
+          { rotate: 0, slide: 0, scaleX: 1 - settings.squash * 0.45, scaleY: 1 + settings.squash * 0.7, flip: -1 },
+        ];
+        const pose = frameOffsets[frame % frameOffsets.length];
+        const drawHeight = settings.spriteHeight;
+        const drawWidth = drawHeight * (bounds.width / bounds.height);
+        const x = 410 + pose.slide;
+        const y = 426;
+
+        context.save();
+        context.globalAlpha = 0.24;
+        context.fillStyle = "#050607";
+        context.beginPath();
+        context.ellipse(x, y + 16, 92 + Math.abs(pose.slide) * 0.5, 18, 0, 0, Math.PI * 2);
+        context.fill();
+        context.restore();
+
+        context.save();
+        context.translate(x, y);
+        context.rotate((pose.rotate * Math.PI) / 180);
+        context.scale(pose.flip * pose.scaleX, pose.scaleY);
+        context.imageSmoothingEnabled = false;
+        context.drawImage(
+          image,
+          bounds.x,
+          bounds.y,
+          bounds.width,
+          bounds.height,
+          -drawWidth / 2,
+          -drawHeight,
+          drawWidth,
+          drawHeight,
+        );
+        context.restore();
+      }
+
+      function draw(now = performance.now()) {
+        if (!bounds) return;
+        const settings = readSettings();
+        if (now - lastFrameAt >= settings.frameMs) {
+          currentFrame = (currentFrame + 1) % 4;
+          lastFrameAt = now;
+        }
+
+        labels.spriteHeight.textContent = `${settings.spriteHeight}px`;
+        labels.frameMs.textContent = `${settings.frameMs}ms`;
+        labels.spin.textContent = `${settings.spin}deg`;
+        labels.slide.textContent = `${settings.slide}px`;
+        labels.squash.textContent = settings.squash.toFixed(3);
+        values.textContent = [
+          `shockWindmill: {`,
+          `  frameMs: ${settings.frameMs},`,
+          `  spin: ${settings.spin},`,
+          `  slide: ${settings.slide},`,
+          `  squash: ${settings.squash.toFixed(3)},`,
+          `}`,
+        ].join("\\n");
+
+        drawGround();
+        drawSprite(currentFrame, settings);
+
+        context.fillStyle = "#cbd6df";
+        context.font = "900 16px Trebuchet MS, sans-serif";
+        context.textAlign = "center";
+        context.fillText(`frame ${currentFrame + 1} / 4`, 410, 74);
+        requestAnimationFrame(draw);
+      }
+
+      Object.values(controls).forEach((control) => control.addEventListener("input", draw));
+      image.onload = () => {
+        bounds = getVisibleBounds(image);
+        requestAnimationFrame(draw);
+      };
+      image.src = imagePath;
+    </script>
+  </body>
+</html>
