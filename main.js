@@ -286,6 +286,28 @@ const ENEMY_SPRITE_DEFS = {
       ko: "assets/sprites/enemy/mid_boss/mid_boss_jump_ko.png",
     },
   },
+  mid_boss_knife: {
+    spriteHeight: 172,
+    koSpriteHeight: 182,
+    spriteHeights: {
+      charge: 224,
+      throw: 244,
+      attack: 244,
+      guard: 224,
+      damage: 224,
+    },
+    footOffsetY: 28,
+    sprites: {
+      idle: "assets/sprites/enemy/mid_boss/mid_boss_knife_idle.png",
+      move: "assets/sprites/enemy/mid_boss/mid_boss_knife_move.png",
+      charge: "assets/sprites/enemy/mid_boss/mid_boss_knife_charge.png",
+      throw: "assets/sprites/enemy/mid_boss/mid_boss_knife_throw.png",
+      attack: "assets/sprites/enemy/mid_boss/mid_boss_knife_attack.png",
+      guard: "assets/sprites/enemy/mid_boss/mid_boss_knife_guard.png",
+      damage: "assets/sprites/enemy/mid_boss/mid_boss_knife_damage.png",
+      ko: "assets/sprites/enemy/mid_boss/mid_boss_knife_ko.png",
+    },
+  },
   major_boss_brawler: {
     spriteHeight: 150,
     koSpriteHeight: 96,
@@ -3237,6 +3259,7 @@ function getEnemySpriteDefKey(enemy) {
   if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "charge") return "mid_boss_charge";
   if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "shock") return "mid_boss_shock";
   if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "jump") return "mid_boss_jump";
+  if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "knife") return "mid_boss_knife";
   return enemy.type;
 }
 
@@ -3265,6 +3288,14 @@ function getEnemySpriteKey(enemy) {
     if (enemy.hitFlash > 0) return "damage";
     if (enemy.attackType === "jump" && enemy.attackActive > 0) return "press";
     if (enemy.attackType === "jump" && enemy.attackWindup > 0) return "charge";
+    if (enemy.attackWindup > 0) return "charge";
+    if (enemy.attackActive > 0) return "attack";
+    if (enemy.isVisuallyMoving || enemy.entering) return "move";
+  }
+  if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "knife") {
+    if (enemy.guardTimer > 0) return "guard";
+    if (enemy.hitFlash > 0) return "damage";
+    if (enemy.attackType === "knife" && enemy.attackActive > 0) return "throw";
     if (enemy.attackWindup > 0) return "charge";
     if (enemy.attackActive > 0) return "attack";
     if (enemy.isVisuallyMoving || enemy.entering) return "move";
