@@ -308,6 +308,22 @@
           height: 172,
         },
         {
+          name: "mid boss jump idle",
+          kind: "enemy",
+          enemy: "mid_boss_jump",
+          control: "mid_boss_jump",
+          path: "assets/sprites/enemy/mid_boss/mid_boss_jump_idle.png",
+          height: 224,
+        },
+        {
+          name: "mid boss jump press",
+          kind: "enemy",
+          enemy: "mid_boss_jump_press",
+          control: "mid_boss_jump_press",
+          path: "assets/sprites/enemy/mid_boss/mid_boss_jump_press.png",
+          height: 190,
+        },
+        {
           name: "major boss idle",
           kind: "enemy",
           enemy: "major_boss_brawler",
@@ -372,6 +388,14 @@
           height: 140,
         },
         {
+          name: "mid boss jump KO",
+          kind: "enemy-ko",
+          enemy: "mid_boss_jump",
+          control: "mid_boss_jump_ko",
+          path: "assets/sprites/enemy/mid_boss/mid_boss_jump_ko.png",
+          height: 182,
+        },
+        {
           name: "major boss KO",
           kind: "enemy-ko",
           enemy: "major_boss_brawler",
@@ -400,6 +424,8 @@
         mid_boss_charge: { spriteHeight: 172, koSpriteHeight: 140 },
         mid_boss_charge_smash: { spriteHeight: 220, koSpriteHeight: 140 },
         mid_boss_shock: { spriteHeight: 172, koSpriteHeight: 140 },
+        mid_boss_jump: { spriteHeight: 224, koSpriteHeight: 182 },
+        mid_boss_jump_press: { spriteHeight: 190, koSpriteHeight: 140 },
         major_boss_brawler: { spriteHeight: 150, koSpriteHeight: 96 },
       };
 

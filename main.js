@@ -267,6 +267,25 @@ const ENEMY_SPRITE_DEFS = {
       ko: "assets/sprites/enemy/mid_boss/mid_boss_shock_ko.png",
     },
   },
+  mid_boss_jump: {
+    spriteHeight: 224,
+    koSpriteHeight: 182,
+    spriteHeights: {
+      attack: 190,
+      press: 190,
+    },
+    footOffsetY: 64,
+    sprites: {
+      idle: "assets/sprites/enemy/mid_boss/mid_boss_jump_idle.png",
+      move: "assets/sprites/enemy/mid_boss/mid_boss_jump_move.png",
+      charge: "assets/sprites/enemy/mid_boss/mid_boss_jump_charge.png",
+      attack: "assets/sprites/enemy/mid_boss/mid_boss_jump_attack.png",
+      press: "assets/sprites/enemy/mid_boss/mid_boss_jump_press.png",
+      guard: "assets/sprites/enemy/mid_boss/mid_boss_jump_guard.png",
+      damage: "assets/sprites/enemy/mid_boss/mid_boss_jump_damage.png",
+      ko: "assets/sprites/enemy/mid_boss/mid_boss_jump_ko.png",
+    },
+  },
   major_boss_brawler: {
     spriteHeight: 150,
     koSpriteHeight: 96,
@@ -3217,6 +3236,7 @@ function getSpriteVisibleBounds(sprite) {
 function getEnemySpriteDefKey(enemy) {
   if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "charge") return "mid_boss_charge";
   if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "shock") return "mid_boss_shock";
+  if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "jump") return "mid_boss_jump";
   return enemy.type;
 }
 
@@ -3237,6 +3257,15 @@ function getEnemySpriteKey(enemy) {
     if (enemy.hitFlash > 0) return "damage";
     if (enemy.attackType === "shock" && enemy.attackActive > 0) return "shock";
     if (enemy.attackWindup > 0) return "windup";
+    if (enemy.attackActive > 0) return "attack";
+    if (enemy.isVisuallyMoving || enemy.entering) return "move";
+  }
+  if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "jump") {
+    if (enemy.guardTimer > 0) return "guard";
+    if (enemy.hitFlash > 0) return "damage";
+    if (enemy.attackType === "jump" && enemy.attackActive > 0) return "press";
+    if (enemy.attackType === "jump" && enemy.attackWindup > 0) return "charge";
+    if (enemy.attackWindup > 0) return "charge";
     if (enemy.attackActive > 0) return "attack";
     if (enemy.isVisuallyMoving || enemy.entering) return "move";
   }
