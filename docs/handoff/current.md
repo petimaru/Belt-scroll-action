@@ -13,7 +13,7 @@ Copy and paste this into the next chat:
 
 まず現在のgit状態とローカルサーバー状態を確認してください。
 
-前回は、Mid Boss D / knife variant のPNG差し替え、ナイフ投げ/近距離攻撃画像の割り当て、idle/move以外の表示サイズ調整、cache buster `v=85` への更新まで実装しました。
+前回は、Mid Boss E / summon variant のPNG差し替え、召喚中のcall画像割り当て、近距離キック画像とダメージ判定タイミングの同期、cache buster `v=87` への更新まで実装しました。
 
 次は画像差し替えの続きを進めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
 ```
@@ -23,9 +23,9 @@ Copy and paste this into the next chat:
 - Workspace: `/Users/takedakouji/Documents/Belt scroll action`
 - GitHub: `https://github.com/petimaru/Belt-scroll-action.git`
 - Branch: `main`
-- Latest pushed commit before current local work: `08e4f9d Add mid boss jump sprites`
-- Current cache buster: `v=85`
-- iPhone test URL when server is running: `http://192.168.0.49:4174/?v=85`
+- Latest pushed commit: `4b7a36d Add mid boss knife sprites`
+- Current cache buster: `v=87`
+- iPhone test URL when server is running: `http://192.168.0.49:4174/?v=87`
 - Local server command: `python3 -m http.server 4174 --bind 0.0.0.0`
 - Current server status at handoff update: running on port 4174
 - Known untracked folders:
@@ -127,6 +127,15 @@ Copy and paste this into the next chat:
     - guard: shown during GUARD even when hit
     - damage: shown only when not guarding
     - ko: HP 0 image
+  - Mid Boss E / summon variant now uses PNG image assets:
+    - idle and move share `mid_boss_summon_idle.png` / `mid_boss_summon_move.png`
+    - attack: close-range attack active
+    - call: summon windup and summon active
+    - guard: shown during GUARD even when hit
+    - damage: shown only when not guarding
+    - ko: HP 0 image
+    - no Charge sprite is used for this boss
+    - close-range attack image is shown only during active damage timing, not during windup
   - Boss HUD and attack/guard labels stay separate from flipped sprite drawing.
   - Collision, HP, speed, AI, attack ranges, and boss behavior were not changed.
 
@@ -246,6 +255,13 @@ Boss sprite folders:
   - `mid_boss_knife_guard.png`
   - `mid_boss_knife_damage.png`
   - `mid_boss_knife_ko.png`
+  - `mid_boss_summon_idle.png`
+  - `mid_boss_summon_move.png`
+  - `mid_boss_summon_attack.png`
+  - `mid_boss_summon_call.png`
+  - `mid_boss_summon_guard.png`
+  - `mid_boss_summon_damage.png`
+  - `mid_boss_summon_ko.png`
 - `assets/sprites/enemy/major_boss/`
   - `major_boss_idle.svg`
   - `major_boss_attack.svg`
@@ -274,6 +290,10 @@ Current enemy visual sizes in `ENEMY_SPRITE_DEFS`:
   - `attack: 244`
   - `guard: 224`
   - `damage: 224`
+- `mid_boss_summon`: `spriteHeight: 172`, `koSpriteHeight: 140`
+  - `attack: 188`
+  - `call: 188`
+  - `damage: 188`
 - `major_boss_brawler`: `spriteHeight: 150`, `koSpriteHeight: 96`
 
 ## Useful Code Locations
@@ -320,7 +340,7 @@ python3 -m http.server 4174 --bind 0.0.0.0
 Then open:
 
 ```text
-http://192.168.0.49:4174/?v=85
+http://192.168.0.49:4174/?v=87
 ```
 
 Sprite comparison page:
@@ -348,13 +368,14 @@ git status --short --branch
 If server is running:
 
 ```sh
-curl -I 'http://127.0.0.1:4174/?v=85'
+curl -I 'http://127.0.0.1:4174/?v=87'
 curl -I 'http://127.0.0.1:4174/sprite-height-compare.html'
 curl -I 'http://127.0.0.1:4174/boss-aura-compare.html'
 curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_charge_idle.png'
 curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_shock_idle.png'
 curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_jump_idle.png'
 curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_knife_idle.png'
+curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_summon_idle.png'
 curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_idle.svg'
 curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/major_boss/major_boss_idle.svg'
 ```
@@ -374,10 +395,10 @@ curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/major_boss/major_boss_idle.s
 ## Suggested Next Steps
 
 - Continue image replacement in this order unless the user chooses otherwise:
-  1. Play-test Mid Boss D / knife image sizes, state switching, and knife throw timing.
-  2. Play-test Mid Boss C / jump image sizes, state switching, and press timing.
-  3. Play-test Mid Boss B / shock image sizes, state switching, and shock windmill transform.
-  4. Play-test Mid Boss A / charge with `spriteHeight: 172`, `koSpriteHeight: 140`, tuned Flame columns aura, and walk transform.
+  1. Play-test Mid Boss E / summon image sizes, state switching, and summon call timing.
+  2. Play-test Mid Boss D / knife image sizes, state switching, and knife throw timing.
+  3. Play-test Mid Boss C / jump image sizes, state switching, and press timing.
+  4. Play-test Mid Boss B / shock image sizes, state switching, and shock windmill transform.
   5. Improve or replace major boss art.
   6. Background
   7. Attack/projectile effects

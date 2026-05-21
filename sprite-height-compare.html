@@ -340,6 +340,22 @@
           height: 244,
         },
         {
+          name: "mid boss summon idle",
+          kind: "enemy",
+          enemy: "mid_boss_summon",
+          control: "mid_boss_summon",
+          path: "assets/sprites/enemy/mid_boss/mid_boss_summon_idle.png",
+          height: 172,
+        },
+        {
+          name: "mid boss summon call",
+          kind: "enemy",
+          enemy: "mid_boss_summon_call",
+          control: "mid_boss_summon_call",
+          path: "assets/sprites/enemy/mid_boss/mid_boss_summon_call.png",
+          height: 188,
+        },
+        {
           name: "major boss idle",
           kind: "enemy",
           enemy: "major_boss_brawler",
@@ -420,6 +436,14 @@
           height: 182,
         },
         {
+          name: "mid boss summon KO",
+          kind: "enemy-ko",
+          enemy: "mid_boss_summon",
+          control: "mid_boss_summon_ko",
+          path: "assets/sprites/enemy/mid_boss/mid_boss_summon_ko.png",
+          height: 140,
+        },
+        {
           name: "major boss KO",
           kind: "enemy-ko",
           enemy: "major_boss_brawler",
@@ -452,6 +476,8 @@
         mid_boss_jump_press: { spriteHeight: 190, koSpriteHeight: 140 },
         mid_boss_knife: { spriteHeight: 172, koSpriteHeight: 182 },
         mid_boss_knife_attack: { spriteHeight: 244, koSpriteHeight: 182 },
+        mid_boss_summon: { spriteHeight: 172, koSpriteHeight: 140 },
+        mid_boss_summon_call: { spriteHeight: 188, koSpriteHeight: 140 },
         major_boss_brawler: { spriteHeight: 150, koSpriteHeight: 96 },
       };
 

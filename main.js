@@ -308,6 +308,25 @@ const ENEMY_SPRITE_DEFS = {
       ko: "assets/sprites/enemy/mid_boss/mid_boss_knife_ko.png",
     },
   },
+  mid_boss_summon: {
+    spriteHeight: 172,
+    koSpriteHeight: 140,
+    spriteHeights: {
+      attack: 188,
+      call: 188,
+      damage: 188,
+    },
+    footOffsetY: 28,
+    sprites: {
+      idle: "assets/sprites/enemy/mid_boss/mid_boss_summon_idle.png",
+      move: "assets/sprites/enemy/mid_boss/mid_boss_summon_move.png",
+      attack: "assets/sprites/enemy/mid_boss/mid_boss_summon_attack.png",
+      call: "assets/sprites/enemy/mid_boss/mid_boss_summon_call.png",
+      guard: "assets/sprites/enemy/mid_boss/mid_boss_summon_guard.png",
+      damage: "assets/sprites/enemy/mid_boss/mid_boss_summon_damage.png",
+      ko: "assets/sprites/enemy/mid_boss/mid_boss_summon_ko.png",
+    },
+  },
   major_boss_brawler: {
     spriteHeight: 150,
     koSpriteHeight: 96,
@@ -3260,6 +3279,7 @@ function getEnemySpriteDefKey(enemy) {
   if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "shock") return "mid_boss_shock";
   if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "jump") return "mid_boss_jump";
   if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "knife") return "mid_boss_knife";
+  if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "summon") return "mid_boss_summon";
   return enemy.type;
 }
 
@@ -3297,6 +3317,13 @@ function getEnemySpriteKey(enemy) {
     if (enemy.hitFlash > 0) return "damage";
     if (enemy.attackType === "knife" && enemy.attackActive > 0) return "throw";
     if (enemy.attackWindup > 0) return "charge";
+    if (enemy.attackActive > 0) return "attack";
+    if (enemy.isVisuallyMoving || enemy.entering) return "move";
+  }
+  if (enemy.type === "mid_boss_brawler" && enemy.bossVariant === "summon") {
+    if (enemy.guardTimer > 0) return "guard";
+    if (enemy.hitFlash > 0) return "damage";
+    if (enemy.attackType === "summon" && (enemy.attackWindup > 0 || enemy.attackActive > 0)) return "call";
     if (enemy.attackActive > 0) return "attack";
     if (enemy.isVisuallyMoving || enemy.entering) return "move";
   }
