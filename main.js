@@ -11,6 +11,11 @@ const specialText = document.getElementById("specialText");
 const scoreText = document.getElementById("scoreText");
 const message = document.getElementById("message");
 const titleOverlay = document.getElementById("titleOverlay");
+const titleNotice = document.getElementById("titleNotice");
+const titleSetupPanel = document.getElementById("titleSetupPanel");
+const stageSelectPanel = document.getElementById("stageSelectPanel");
+const stageSelectButton = document.getElementById("stageSelectButton");
+const titleBackButton = document.getElementById("titleBackButton");
 const difficultyButtons = [...document.querySelectorAll("[data-difficulty]")];
 const characterActions = document.getElementById("characterActions");
 const debugStartActions = document.getElementById("debugStartActions");
@@ -63,6 +68,9 @@ const DIFFICULTY_SETTINGS = {
 };
 
 let currentDifficultyKey = "normal";
+let titleStep = "setup";
+let titleNoticeText = "";
+const completedStageNumbers = new Set();
 
 const INITIAL_LIVES = 3;
 const MAX_LIVES = 5;
@@ -463,14 +471,32 @@ const MAJOR_BOSS_ENEMY = {
 
 const BOSS_TYPES = new Set(["mid_boss_brawler", "major_boss_brawler"]);
 
-const BOSS_SCHEDULE = [
-  { area: 5, rank: "mid", variant: "charge", debugLabel: "中ボスA" },
-  { area: 10, rank: "mid", variant: "shock", debugLabel: "中ボスB" },
-  { area: 15, rank: "mid", variant: "jump", debugLabel: "中ボスC" },
-  { area: 20, rank: "major", variant: "all", debugLabel: "大ボス" },
-  { area: 25, rank: "mid", variant: "knife", debugLabel: "中ボスD" },
-  { area: 30, rank: "mid", variant: "summon", debugLabel: "中ボスE" },
+const AREAS_PER_STAGE = 5;
+const FINAL_STAGE_NUMBER = 6;
+const STAGE_DEFS = [
+  { stage: 1, label: "ステージ1", bossLabel: "中ボスA", startArea: 1, bossArea: 5, rank: "mid", variant: "charge" },
+  { stage: 2, label: "ステージ2", bossLabel: "中ボスB", startArea: 6, bossArea: 10, rank: "mid", variant: "shock" },
+  { stage: 3, label: "ステージ3", bossLabel: "中ボスC", startArea: 11, bossArea: 15, rank: "mid", variant: "jump" },
+  { stage: 4, label: "ステージ4", bossLabel: "中ボスD", startArea: 16, bossArea: 20, rank: "mid", variant: "knife" },
+  { stage: 5, label: "ステージ5", bossLabel: "中ボスE", startArea: 21, bossArea: 25, rank: "mid", variant: "summon" },
+  {
+    stage: FINAL_STAGE_NUMBER,
+    label: "ステージ6",
+    bossLabel: "大ボス",
+    startArea: 26,
+    bossArea: 30,
+    rank: "major",
+    variant: "all",
+    requiresMainStagesClear: true,
+  },
 ];
+const BOSS_SCHEDULE = STAGE_DEFS.map((stageDef) => ({
+  area: stageDef.bossArea,
+  rank: stageDef.rank,
+  variant: stageDef.variant,
+  stage: stageDef.stage,
+  debugLabel: stageDef.bossLabel,
+}));
 
 const ITEM_TYPES = {
   onigiri: { icon: "🍙", heal: 10, label: "+10 HP" },
@@ -567,6 +593,7 @@ const state = {
   score: 0,
   area: 1,
   wave: 1,
+  currentStage: 1,
   exitGateOpen: false,
   areaTransitionTimer: 0,
   gameOverTimer: 0,
@@ -593,6 +620,33 @@ function getCurrentDifficulty() {
 
 function getCurrentPlayerCharacter() {
   return PLAYER_CHARACTERS[currentPlayerCharacterKey] ?? PLAYER_CHARACTERS.petiman;
+}
+
+function getStageDef(stageNumber = state.currentStage) {
+  return STAGE_DEFS.find((stageDef) => stageDef.stage === stageNumber) ?? STAGE_DEFS[0];
+}
+
+function getStageDefForArea(area = state.area) {
+  return STAGE_DEFS.find((stageDef) => area >= stageDef.startArea && area <= stageDef.bossArea) ?? STAGE_DEFS[0];
+}
+
+function getStageLocalArea(area = state.area) {
+  const stageDef = getStageDefForArea(area);
+  return clamp(area - stageDef.startArea + 1, 1, AREAS_PER_STAGE);
+}
+
+function areMainStagesCleared() {
+  return STAGE_DEFS.filter((stageDef) => stageDef.stage < FINAL_STAGE_NUMBER).every((stageDef) =>
+    completedStageNumbers.has(stageDef.stage),
+  );
+}
+
+function isStageUnlocked(stageDef) {
+  return !stageDef.requiresMainStagesClear || areMainStagesCleared();
+}
+
+function isCurrentStageFinalArea() {
+  return state.area >= getStageDef(state.currentStage).bossArea;
 }
 
 function scaleEnemyHp(value) {
@@ -988,7 +1042,9 @@ function createBreakable(type, x, y) {
 }
 
 function resetRun(keepScore = false, startArea = 1) {
+  const stageDef = getStageDefForArea(startArea);
   state.gameStarted = true;
+  state.currentStage = stageDef.stage;
   state.player = createPlayer();
   state.area = startArea;
   state.wave = startArea;
@@ -1010,7 +1066,7 @@ function resetRun(keepScore = false, startArea = 1) {
   if (!keepScore) state.score = 0;
   updateContinueOverlay();
   updateTitleOverlay();
-  showMessage(`${getCurrentDifficulty().label} Area ${startArea}`, 900);
+  showMessage(`${getCurrentDifficulty().label} Stage ${stageDef.stage}-${getStageLocalArea(startArea)}`, 900);
 }
 
 function selectDifficulty(difficultyKey = currentDifficultyKey) {
@@ -1029,8 +1085,35 @@ function startGame(startArea = 1) {
   resetRun(false, startArea);
 }
 
+function startStage(stageNumber = 1) {
+  const stageDef = getStageDef(stageNumber);
+  if (!isStageUnlocked(stageDef)) {
+    titleNoticeText = "ステージ6はステージ1〜5クリア後に選択できます";
+    updateTitleOverlay();
+    return;
+  }
+
+  titleNoticeText = "";
+  startGame(stageDef.startArea);
+}
+
+function showStageSelect() {
+  titleStep = "stage";
+  titleNoticeText = "";
+  updateTitleOverlay();
+}
+
+function showTitleSetup() {
+  titleStep = "setup";
+  titleNoticeText = "";
+  updateTitleOverlay();
+}
+
 function updateTitleOverlay() {
   titleOverlay.hidden = state.gameStarted;
+  titleNotice.textContent = titleNoticeText;
+  titleSetupPanel.hidden = titleStep !== "setup";
+  stageSelectPanel.hidden = titleStep !== "stage";
   updatePlayerIdentityHud();
   difficultyButtons.forEach((button) => {
     button.classList.toggle("is-selected", button.dataset.difficulty === currentDifficultyKey);
@@ -1038,6 +1121,7 @@ function updateTitleOverlay() {
   [...characterActions.querySelectorAll("[data-character]")].forEach((button) => {
     button.classList.toggle("is-selected", button.dataset.character === currentPlayerCharacterKey);
   });
+  buildStageButtons();
 }
 
 function updatePlayerIdentityHud() {
@@ -1046,16 +1130,30 @@ function updatePlayerIdentityHud() {
   playerAvatar.replaceChildren(createCharacterFaceImage(character, `${character.label} face`));
 }
 
-function buildDebugStartButtons() {
+function buildStageButtons() {
   debugStartActions.replaceChildren();
 
-  const startOptions = [{ area: 1, debugLabel: "通常プレイ", primary: true }, ...BOSS_SCHEDULE];
-  startOptions.forEach((option) => {
+  STAGE_DEFS.forEach((stageDef) => {
+    const unlocked = isStageUnlocked(stageDef);
+    const complete = completedStageNumbers.has(stageDef.stage);
     const button = document.createElement("button");
-    button.className = `start-button${option.primary ? " primary" : ""}`;
+    button.className = [
+      "start-button",
+      stageDef.stage === 1 ? "primary" : "",
+      complete ? "is-complete" : "",
+      unlocked ? "" : "is-locked",
+    ]
+      .filter(Boolean)
+      .join(" ");
     button.type = "button";
-    button.textContent = option.debugLabel;
-    button.addEventListener("click", () => startGame(option.area));
+    button.disabled = !unlocked;
+
+    const label = document.createElement("span");
+    label.textContent = stageDef.label;
+    const detail = document.createElement("small");
+    detail.textContent = complete ? `${stageDef.bossLabel} CLEAR` : stageDef.bossLabel;
+    button.append(label, detail);
+    button.addEventListener("click", () => startStage(stageDef.stage));
     debugStartActions.append(button);
   });
 }
@@ -2644,6 +2742,11 @@ function maybeAdvanceWave() {
   const regularEnemiesRemaining = state.enemies.some((enemy) => enemy.type !== "bike_rusher");
   if (regularEnemiesRemaining) return;
 
+  if (isCurrentStageFinalArea() && state.currentStage === FINAL_STAGE_NUMBER) {
+    completeCurrentStage();
+    return;
+  }
+
   if (state.exitGateOpen) return;
   state.exitGateOpen = true;
   state.bikeSpawnTimer = null;
@@ -2651,6 +2754,11 @@ function maybeAdvanceWave() {
 }
 
 function enterNextArea() {
+  if (isCurrentStageFinalArea()) {
+    completeCurrentStage();
+    return;
+  }
+
   state.area += 1;
   state.wave = state.area;
   state.areaTransitionTimer = 0.58;
@@ -2665,6 +2773,36 @@ function enterNextArea() {
   state.items = [];
   state.enemies = [];
   spawnWave(false);
+}
+
+function completeCurrentStage() {
+  const stageDef = getStageDef(state.currentStage);
+  state.gameStarted = false;
+  state.exitGateOpen = false;
+  state.bikeSpawnTimer = null;
+  state.bikeSpawnsRemaining = 0;
+  state.areaTransitionTimer = 0;
+  state.superFlashTimer = 0;
+  state.screenShakeTimer = 0;
+  state.majorBossIntroTimer = 0;
+  state.continueActive = false;
+  state.continueTimer = 0;
+  state.attacks = [];
+  state.projectiles = [];
+  state.items = [];
+  state.enemies = [];
+  state.breakables = [];
+  clearAllInput();
+  updateContinueOverlay();
+
+  titleStep = "stage";
+  if (stageDef.stage === FINAL_STAGE_NUMBER) {
+    titleNoticeText = "GAME CLEAR!";
+  } else {
+    completedStageNumbers.add(stageDef.stage);
+    titleNoticeText = `${stageDef.label} CLEAR!`;
+  }
+  updateTitleOverlay();
 }
 
 function update(dt) {
@@ -2811,6 +2949,9 @@ function drawExitGate(scaleX, scaleY) {
 }
 
 function drawAreaBadge(scaleX, scaleY) {
+  const stageDef = getStageDefForArea(state.area);
+  const stageLabel = `${stageDef.stage}-${getStageLocalArea(state.area)}`;
+
   ctx.save();
   ctx.translate(26 * scaleX, 24 * scaleY);
   ctx.scale(scaleX, scaleY);
@@ -2819,18 +2960,18 @@ function drawAreaBadge(scaleX, scaleY) {
   ctx.strokeStyle = getAreaTheme().border;
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.roundRect(0, 0, 116, 34, 10);
+  ctx.roundRect(0, 0, 148, 34, 10);
   ctx.fill();
   ctx.stroke();
 
   ctx.fillStyle = "rgba(246, 240, 223, 0.72)";
   ctx.font = "900 12px Trebuchet MS, sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText("AREA", 14, 15);
+  ctx.fillText("STAGE", 14, 15);
 
   ctx.fillStyle = "#ffc857";
   ctx.font = "900 20px Trebuchet MS, sans-serif";
-  ctx.fillText(String(state.area), 62, 23);
+  ctx.fillText(stageLabel, 76, 23);
 
   ctx.restore();
 }
@@ -4197,18 +4338,28 @@ function preventBrowserZoomGestures() {
 
 window.addEventListener("keydown", (event) => {
   if (!state.gameStarted) {
-    if (event.code === "Digit1") {
+    if (titleStep === "stage" && /^Digit[1-6]$/.test(event.code)) {
+      event.preventDefault();
+      startStage(Number(event.code.replace("Digit", "")));
+    } else if (titleStep === "setup" && event.code === "Digit1") {
       event.preventDefault();
       selectDifficulty("easy");
-    } else if (event.code === "Digit2") {
+    } else if (titleStep === "setup" && event.code === "Digit2") {
       event.preventDefault();
       selectDifficulty("normal");
-    } else if (event.code === "Digit3") {
+    } else if (titleStep === "setup" && event.code === "Digit3") {
       event.preventDefault();
       selectDifficulty("hard");
     } else if (event.code === "Space" || event.code === "Enter") {
       event.preventDefault();
-      startGame(1);
+      if (titleStep === "setup") {
+        showStageSelect();
+      } else {
+        startStage(1);
+      }
+    } else if (event.code === "Escape" && titleStep === "stage") {
+      event.preventDefault();
+      showTitleSetup();
     }
     return;
   }
@@ -4407,6 +4558,8 @@ document.addEventListener("touchcancel", clearPointerInput, { passive: true });
 
 continueButton.addEventListener("click", acceptContinue);
 giveUpButton.addEventListener("click", giveUpContinue);
+stageSelectButton.addEventListener("click", showStageSelect);
+titleBackButton.addEventListener("click", showTitleSetup);
 difficultyButtons.forEach((button) => {
   button.addEventListener("click", () => selectDifficulty(button.dataset.difficulty));
 });
@@ -4450,7 +4603,7 @@ canvas.addEventListener("contextmenu", (event) => event.preventDefault());
 
 resizeCanvas();
 preventBrowserZoomGestures();
-buildDebugStartButtons();
+buildStageButtons();
 buildCharacterButtons();
 updateTitleOverlay();
 updateHud();

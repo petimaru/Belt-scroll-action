@@ -318,10 +318,18 @@ body {
 }
 
 .title-panel h1 {
-  margin: 0 0 24px;
+  margin: 0 0 16px;
   color: #f6f0df;
   font-size: clamp(42px, 8vw, 82px);
   line-height: 0.92;
+}
+
+.title-notice {
+  min-height: 20px;
+  margin: 0 0 14px;
+  color: var(--gold);
+  font-size: 14px;
+  font-weight: 900;
 }
 
 .character-actions {
@@ -417,6 +425,34 @@ body {
   background: rgba(121, 215, 255, 0.18);
 }
 
+.title-nav-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.stage-select-panel[hidden] {
+  display: none;
+}
+
+.stage-select-header {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.stage-select-header strong {
+  color: var(--gold);
+  font-size: clamp(22px, 4vw, 34px);
+  line-height: 1;
+}
+
+.stage-select-header small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .debug-start-actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -440,6 +476,24 @@ body {
 .start-button.primary {
   border-color: rgba(255, 200, 87, 0.62);
   background: rgba(255, 200, 87, 0.18);
+}
+
+.start-button.is-complete {
+  border-color: rgba(119, 223, 116, 0.62);
+  background: rgba(119, 223, 116, 0.14);
+}
+
+.start-button.is-locked {
+  color: rgba(246, 240, 223, 0.42);
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.start-button small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .continue-overlay {

@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
     <title>ベルトスクロールアクションメーカー Prototype</title>
-    <link rel="stylesheet" href="style.css?v=89" />
+    <link rel="stylesheet" href="style.css?v=90" />
   </head>
   <body>
     <main class="game-shell" aria-label="ベルトスクロールアクションゲーム">
@@ -47,22 +47,37 @@
           <div class="title-panel">
             <p class="title-kicker">Belt Scroll Action</p>
             <h1>STREET BREAKER</h1>
-            <div id="characterActions" class="character-actions" aria-label="キャラクター選択"></div>
-            <div class="difficulty-actions" aria-label="難易度選択">
-              <button class="difficulty-button" type="button" data-difficulty="easy">
-                <span>Easy</span>
-                <small>練習向け</small>
-              </button>
-              <button class="difficulty-button is-selected" type="button" data-difficulty="normal">
-                <span>Normal</span>
-                <small>標準</small>
-              </button>
-              <button class="difficulty-button" type="button" data-difficulty="hard">
-                <span>Hard</span>
-                <small>手強い</small>
-              </button>
+            <p id="titleNotice" class="title-notice"></p>
+            <div id="titleSetupPanel">
+              <div id="characterActions" class="character-actions" aria-label="キャラクター選択"></div>
+              <div class="difficulty-actions" aria-label="難易度選択">
+                <button class="difficulty-button" type="button" data-difficulty="easy">
+                  <span>Easy</span>
+                  <small>練習向け</small>
+                </button>
+                <button class="difficulty-button is-selected" type="button" data-difficulty="normal">
+                  <span>Normal</span>
+                  <small>標準</small>
+                </button>
+                <button class="difficulty-button" type="button" data-difficulty="hard">
+                  <span>Hard</span>
+                  <small>手強い</small>
+                </button>
+              </div>
+              <div class="title-nav-actions">
+                <button id="stageSelectButton" class="start-button primary" type="button">ステージ選択へ</button>
+              </div>
             </div>
-            <div id="debugStartActions" class="debug-start-actions" aria-label="開始地点選択"></div>
+            <div id="stageSelectPanel" class="stage-select-panel" hidden>
+              <div class="stage-select-header">
+                <strong>Stage Select</strong>
+                <small>ステージ6はステージ1〜5クリア後に解放</small>
+              </div>
+              <div id="debugStartActions" class="debug-start-actions" aria-label="ステージ選択"></div>
+              <div class="title-nav-actions">
+                <button id="titleBackButton" class="start-button" type="button">戻る</button>
+              </div>
+            </div>
           </div>
         </div>
         <div id="continueOverlay" class="continue-overlay" aria-live="assertive" hidden>
@@ -77,10 +92,10 @@
 
       <footer class="hud hud-bottom">
         <p>PC操作: WASD / 矢印キーで移動、Space / クリックで攻撃、Qで必殺、Rで超必殺、Shift+左右でジャンプ</p>
-        <p>Prototype: 全滅後に右側ゲート解放、次エリアへ進行</p>
+        <p>Prototype: 5エリアで1ステージ、ステージ選択から開始</p>
       </footer>
     </main>
 
-    <script src="main.js?v=89"></script>
+    <script src="main.js?v=90"></script>
   </body>
 </html>

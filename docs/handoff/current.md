@@ -2,7 +2,7 @@
 
 > Temporary handoff note for continuing development.
 > Source of truth is the code and Git history. If this file conflicts with code, trust the code.
-> Last updated: 2026-05-21
+> Last updated: 2026-05-22
 
 ## New Chat Instruction
 
@@ -13,9 +13,9 @@ Copy and paste this into the next chat:
 
 まず現在のgit状態とローカルサーバー状態を確認してください。
 
-前回は、Major Boss の突進攻撃中画像 `major_boss_charge_attack.png` 追加、charge溜め/突進中の表示分離、cache buster `v=89` への更新まで実装しました。
+前回は、5エリア=1ステージのステージ選択制、Stage 1〜5 中ボスA〜E、Stage 6 大ボス、Stage 6ロック解除条件、cache buster `v=90` への更新まで実装しました。
 
-次は画像差し替えの続きを進めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
+次はステージ制の確認または背景差し替えの続きを進めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
 ```
 
 ## Project
@@ -23,9 +23,9 @@ Copy and paste this into the next chat:
 - Workspace: `/Users/takedakouji/Documents/Belt scroll action`
 - GitHub: `https://github.com/petimaru/Belt-scroll-action.git`
 - Branch: `main`
-- Latest pushed commit: `fc792a8 Add mid boss summon sprites`
-- Current cache buster: `v=89`
-- iPhone test URL when server is running: `http://192.168.0.49:4174/?v=89`
+- Latest pushed commit: `babe7c7 Add major boss sprites`
+- Current cache buster: `v=90`
+- iPhone test URL when server is running: `http://192.168.0.49:4174/?v=90`
 - Local server command: `python3 -m http.server 4174 --bind 0.0.0.0`
 - Current server status at handoff update: running on port 4174
 - Known untracked folders:
@@ -55,6 +55,17 @@ Copy and paste this into the next chat:
   - Tap while jumping: jump kick
 - Defeat required enemies to open the right-side gate.
 - Move to the right edge after gate opens to enter the next Area.
+- 5 Areas are grouped as 1 Stage.
+- Title flow is character selection / difficulty selection, then Stage Select.
+- Stage 1〜5 are selectable from the start:
+  - Stage 1: Areas 1〜5, Mid Boss A
+  - Stage 2: Areas 6〜10, Mid Boss B
+  - Stage 3: Areas 11〜15, Mid Boss C
+  - Stage 4: Areas 16〜20, Mid Boss D
+  - Stage 5: Areas 21〜25, Mid Boss E
+- Stage 6 is locked until Stage 1〜5 are cleared:
+  - Stage 6: Areas 26〜30, Major Boss
+- Defeating the Major Boss completes the game.
 - Continue screen exists with countdown.
 - Jump avoids normal attacks, knives, bullets, bike rushes, and boss radial attacks.
 
@@ -185,17 +196,19 @@ Copy and paste this into the next chat:
 - Enemy size tuning:
   - `sprite-height-compare.html` exists at project root.
   - It compares PETIMAN, ROOEEBEE, enemy idle sprites, bike rusher, boss sprites, and KO sprites.
+  - Major Boss comparison now includes idle, charge windup, charge attack, normal attack, shock, jump press, knife throw, summon, guard, damage, and KO sprites.
   - It has per-enemy sliders for normal and KO sizes.
   - Reusable local skill exists at `~/.codex/skills/enemy-sprite-size-tuner/SKILL.md`.
 
 - Boss system:
-  - Boss schedule is table-driven via `BOSS_SCHEDULE`.
+  - Stage definitions live in `STAGE_DEFS`.
+  - Boss schedule is generated from `STAGE_DEFS` into `BOSS_SCHEDULE`.
   - Mid Boss A: charge
   - Mid Boss B: shock
   - Mid Boss C: jump
-  - Major Boss: all current mid-boss techniques, including summon
   - Mid Boss D: knife
   - Mid Boss E: summon
+  - Major Boss: all current mid-boss techniques, including summon
   - Mid Boss E waits until summoned enemies are defeated, then waits 10 seconds before summoning again.
 
 ## Sprite Assets
@@ -337,10 +350,12 @@ Current enemy visual sizes in `ENEMY_SPRITE_DEFS`:
   - title and HUD styling
   - character select buttons
   - difficulty/start buttons
+  - stage select buttons
 - `main.js`
   - `PLAYER_CHARACTERS`
   - `ENEMY_SPRITE_DEFS`
   - `enemySprites`
+  - `STAGE_DEFS`
   - `BOSS_SCHEDULE`
   - `DIFFICULTY_SETTINGS`
   - `loadSpriteImages()`
@@ -356,10 +371,10 @@ Current enemy visual sizes in `ENEMY_SPRITE_DEFS`:
 
 - Last checked status:
   - `main...origin/main`
-  - no committed-code changes after latest push
+  - modified: `docs/handoff/current.md`, `index.html`, `main.js`, `sprite-height-compare.html`, `style.css`
   - untracked: old walk-animation experiment files plus known `.playwright-cli/`, `output/`, `tmp/`
 - Last pushed commit:
-  - `1fea991 Add mid boss shock sprites`
+  - `babe7c7 Add major boss sprites`
 - Server was running on port 4174 when this handoff was updated.
 - Start server before iPhone testing:
 
@@ -370,7 +385,7 @@ python3 -m http.server 4174 --bind 0.0.0.0
 Then open:
 
 ```text
-http://192.168.0.49:4174/?v=89
+http://192.168.0.49:4174/?v=90
 ```
 
 Sprite comparison page:
@@ -398,7 +413,7 @@ git status --short --branch
 If server is running:
 
 ```sh
-curl -I 'http://127.0.0.1:4174/?v=89'
+curl -I 'http://127.0.0.1:4174/?v=90'
 curl -I 'http://127.0.0.1:4174/sprite-height-compare.html'
 curl -I 'http://127.0.0.1:4174/boss-aura-compare.html'
 curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_charge_idle.png'
@@ -424,13 +439,11 @@ curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/major_boss/major_boss_idle.p
 
 ## Suggested Next Steps
 
-- Continue image replacement in this order unless the user chooses otherwise:
-  1. Play-test Major Boss image sizes, state switching, and summon behavior.
-  2. Play-test Mid Boss E / summon image sizes, state switching, and summon call timing.
-  3. Play-test Mid Boss D / knife image sizes, state switching, and knife throw timing.
-  4. Play-test Mid Boss C / jump image sizes, state switching, and press timing.
-  5. Play-test Mid Boss B / shock image sizes, state switching, and shock windmill transform.
-  6. Background
-  7. Attack/projectile effects
-  8. Items/breakables
+- Continue in this order unless the user chooses otherwise:
+  1. Play-test Stage Select on Mac and iPhone.
+  2. Confirm Stage 1〜5 clear flow and Stage 6 unlock.
+  3. Confirm Major Boss defeat shows game clear.
+  4. Background image replacement per Stage.
+  5. Attack/projectile effects.
+  6. Items/breakables.
 - Consider LocalStorage later for selected character and difficulty.
