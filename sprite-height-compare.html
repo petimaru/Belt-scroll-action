@@ -360,8 +360,32 @@
           kind: "enemy",
           enemy: "major_boss_brawler",
           control: "major_boss_brawler",
-          path: "assets/sprites/enemy/major_boss/major_boss_idle.svg",
-          height: 150,
+          path: "assets/sprites/enemy/major_boss/major_boss_idle.png",
+          height: 170,
+        },
+        {
+          name: "major boss shock",
+          kind: "enemy",
+          enemy: "major_boss_shock",
+          control: "major_boss_shock",
+          path: "assets/sprites/enemy/major_boss/major_boss_shock.png",
+          height: 205,
+        },
+        {
+          name: "major boss charge attack",
+          kind: "enemy",
+          enemy: "major_boss_charge_attack",
+          control: "major_boss_charge_attack",
+          path: "assets/sprites/enemy/major_boss/major_boss_charge_attack.png",
+          height: 205,
+        },
+        {
+          name: "major boss summon",
+          kind: "enemy",
+          enemy: "major_boss_summon",
+          control: "major_boss_summon",
+          path: "assets/sprites/enemy/major_boss/major_boss_summon.png",
+          height: 205,
         },
         {
           name: "slow_puncher KO",
@@ -448,8 +472,8 @@
           kind: "enemy-ko",
           enemy: "major_boss_brawler",
           control: "major_boss_brawler_ko",
-          path: "assets/sprites/enemy/major_boss/major_boss_ko.svg",
-          height: 96,
+          path: "assets/sprites/enemy/major_boss/major_boss_ko.png",
+          height: 140,
         },
       ];
 
@@ -478,7 +502,10 @@
         mid_boss_knife_attack: { spriteHeight: 244, koSpriteHeight: 182 },
         mid_boss_summon: { spriteHeight: 172, koSpriteHeight: 140 },
         mid_boss_summon_call: { spriteHeight: 188, koSpriteHeight: 140 },
-        major_boss_brawler: { spriteHeight: 150, koSpriteHeight: 96 },
+        major_boss_brawler: { spriteHeight: 170, koSpriteHeight: 140 },
+        major_boss_charge_attack: { spriteHeight: 205, koSpriteHeight: 140 },
+        major_boss_shock: { spriteHeight: 205, koSpriteHeight: 140 },
+        major_boss_summon: { spriteHeight: 205, koSpriteHeight: 140 },
       };
 
       function loadImage(path) {

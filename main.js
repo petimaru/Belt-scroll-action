@@ -328,14 +328,33 @@ const ENEMY_SPRITE_DEFS = {
     },
   },
   major_boss_brawler: {
-    spriteHeight: 150,
-    koSpriteHeight: 96,
-    footOffsetY: 36,
+    spriteHeight: 170,
+    koSpriteHeight: 140,
+    spriteHeights: {
+      charge: 190,
+      chargeAttack: 205,
+      attack: 190,
+      shock: 205,
+      jumpPress: 205,
+      knifeThrow: 190,
+      summon: 205,
+      guard: 190,
+      damage: 190,
+    },
+    footOffsetY: 34,
     sprites: {
-      idle: "assets/sprites/enemy/major_boss/major_boss_idle.svg",
-      attack: "assets/sprites/enemy/major_boss/major_boss_attack.svg",
-      damage: "assets/sprites/enemy/major_boss/major_boss_damage.svg",
-      ko: "assets/sprites/enemy/major_boss/major_boss_ko.svg",
+      idle: "assets/sprites/enemy/major_boss/major_boss_idle.png",
+      move: "assets/sprites/enemy/major_boss/major_boss_move.png",
+      charge: "assets/sprites/enemy/major_boss/major_boss_charge.png",
+      chargeAttack: "assets/sprites/enemy/major_boss/major_boss_charge_attack.png",
+      attack: "assets/sprites/enemy/major_boss/major_boss_attack.png",
+      shock: "assets/sprites/enemy/major_boss/major_boss_shock.png",
+      jumpPress: "assets/sprites/enemy/major_boss/major_boss_jump_press.png",
+      knifeThrow: "assets/sprites/enemy/major_boss/major_boss_knife_throw.png",
+      summon: "assets/sprites/enemy/major_boss/major_boss_summon.png",
+      guard: "assets/sprites/enemy/major_boss/major_boss_guard.png",
+      damage: "assets/sprites/enemy/major_boss/major_boss_damage.png",
+      ko: "assets/sprites/enemy/major_boss/major_boss_ko.png",
     },
   },
 };
@@ -848,6 +867,9 @@ function createMajorBossEnemy(round = 1) {
     visualJumpHeight: 0,
     guardTimer: 0,
     guardCooldown: 1.0,
+    summonedEnemyCount: 0,
+    hasActiveSummonWave: false,
+    summonCooldownTimer: 0,
     hasDamagedThisSwing: false,
     facing: -1,
     wanderTimer: 0,
@@ -1798,7 +1820,7 @@ function updateMidBossEnemy(enemy, player, dt) {
 }
 
 function canBossUseAttack(enemy, attackType) {
-  if (attackType === "summon") return enemy.bossVariant === "summon";
+  if (attackType === "summon") return enemy.bossVariant === "summon" || enemy.bossVariant === "all";
   return enemy.bossVariant === "all" || enemy.bossVariant === attackType;
 }
 
@@ -1813,6 +1835,7 @@ function chooseBossAttackType(enemy, ranges) {
   }
 
   const candidates = [];
+  if (ranges.canSummon) candidates.push("summon");
   if (ranges.inShockRange) candidates.push("shock");
   if (ranges.inChargeRange) candidates.push("charge");
   if (ranges.inJumpRange) candidates.push("jump");
@@ -3324,6 +3347,18 @@ function getEnemySpriteKey(enemy) {
     if (enemy.guardTimer > 0) return "guard";
     if (enemy.hitFlash > 0) return "damage";
     if (enemy.attackType === "summon" && (enemy.attackWindup > 0 || enemy.attackActive > 0)) return "call";
+    if (enemy.attackActive > 0) return "attack";
+    if (enemy.isVisuallyMoving || enemy.entering) return "move";
+  }
+  if (enemy.type === "major_boss_brawler") {
+    if (enemy.guardTimer > 0) return "guard";
+    if (enemy.hitFlash > 0) return "damage";
+    if (enemy.attackType === "charge" && enemy.attackActive > 0) return "chargeAttack";
+    if (enemy.attackType === "charge" && enemy.attackWindup > 0) return "charge";
+    if (enemy.attackType === "shock" && (enemy.attackWindup > 0 || enemy.attackActive > 0)) return "shock";
+    if (enemy.attackType === "jump" && enemy.attackActive > 0) return "jumpPress";
+    if (enemy.attackType === "knife" && enemy.attackActive > 0) return "knifeThrow";
+    if (enemy.attackType === "summon" && (enemy.attackWindup > 0 || enemy.attackActive > 0)) return "summon";
     if (enemy.attackActive > 0) return "attack";
     if (enemy.isVisuallyMoving || enemy.entering) return "move";
   }
