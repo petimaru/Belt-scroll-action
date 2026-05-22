@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>GO Arrow Preview</title>
+    <style>
+      :root {
+        color: #f6f0df;
+        background: #111411;
+        font-family: "Trebuchet MS", "Hiragino Sans", "Yu Gothic", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100svh;
+        margin: 0;
+        padding: 18px;
+        background:
+          radial-gradient(circle at top left, rgba(255, 200, 87, 0.14), transparent 30rem),
+          linear-gradient(145deg, #101713, #1f1918 56%, #0f1215);
+      }
+
+      main {
+        width: min(100%, 1120px);
+        margin: 0 auto;
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      h1 {
+        margin: 0;
+        color: #ffc857;
+        font-size: clamp(20px, 3vw, 32px);
+      }
+
+      .toolbar p {
+        margin: 0;
+        color: rgba(246, 240, 223, 0.72);
+        font-size: 13px;
+      }
+
+      .stage-wrap {
+        overflow: hidden;
+        border: 1px solid rgba(255, 232, 180, 0.22);
+        border-radius: 14px;
+        background: rgba(0, 0, 0, 0.42);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+      }
+
+      .stage {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        overflow: hidden;
+      }
+
+      .background {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        image-rendering: pixelated;
+      }
+
+      .actor {
+        position: absolute;
+        bottom: 13%;
+        height: var(--actor-h);
+        transform: translateX(-50%);
+        image-rendering: pixelated;
+        filter: drop-shadow(0 12px 14px rgba(0, 0, 0, 0.58));
+      }
+
+      .petiman {
+        left: 47%;
+        --actor-h: 18%;
+      }
+
+      .slow-puncher {
+        left: 68%;
+        --actor-h: 26%;
+        transform: translateX(-50%) scaleX(-1);
+      }
+
+      .go-arrow {
+        position: absolute;
+        right: 4.8%;
+        bottom: 17%;
+        width: 18%;
+        min-width: 112px;
+        max-width: 184px;
+        image-rendering: pixelated;
+        transform-origin: 50% 60%;
+        filter:
+          drop-shadow(0 5px 0 rgba(15, 10, 22, 0.78))
+          drop-shadow(0 12px 14px rgba(0, 0, 0, 0.52));
+        animation: go-wiggle 1.05s ease-in-out infinite;
+      }
+
+      @keyframes go-wiggle {
+        0%,
+        100% {
+          transform: translateX(-5px) rotate(-1deg);
+        }
+
+        50% {
+          transform: translateX(7px) rotate(1deg);
+        }
+      }
+
+      .caption {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        color: rgba(246, 240, 223, 0.78);
+        font-size: 13px;
+      }
+
+      @media (max-width: 720px) {
+        body {
+          padding: 10px;
+        }
+
+        .toolbar,
+        .caption {
+          display: grid;
+        }
+
+        .go-arrow {
+          right: 3.8%;
+          bottom: 17.5%;
+          width: 22%;
+          min-width: 86px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="toolbar">
+        <h1>GO Arrow Preview</h1>
+        <p>32-bit風ドット絵候補。本編にはまだ未実装。</p>
+      </div>
+
+      <section class="stage-wrap">
+        <div class="stage">
+          <img class="background" src="assets/maps/stage-1-1/kabukicho-back-alley-bg-32bit.png" alt="Stage 1-1 background" />
+          <img class="actor petiman" src="assets/sprites/player/petiman-idle.png" alt="PETIMAN" />
+          <img class="actor slow-puncher" src="assets/sprites/enemy/general/slow_puncher_idle.png" alt="slow puncher" />
+          <img class="go-arrow" src="assets/ui/exit-go/sheet-transparent.png" alt="GO right arrow" />
+        </div>
+        <div class="caption">
+          <span>出口マーカーは非表示。GOのみを右端の地面付近に配置。</span>
+          <span>左右に軽く揺れる想定。</span>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

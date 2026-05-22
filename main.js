@@ -31,6 +31,11 @@ const WORLD = {
   floorBottom: 470,
 };
 
+const WALKABLE_LANE = {
+  top: 300,
+  bottom: 452,
+};
+
 const DIFFICULTY = {
   enemyAttackCooldown: 1.9,
   enemyAttackWindup: 0.46,
@@ -497,6 +502,13 @@ const BOSS_SCHEDULE = STAGE_DEFS.map((stageDef) => ({
   stage: stageDef.stage,
   debugLabel: stageDef.bossLabel,
 }));
+const STAGE_BACKGROUND_SPRITES = loadSpriteImages({
+  stage1Regular: "assets/maps/stage-1-1/kabukicho-back-alley-bg-32bit.png",
+  stage1Boss: "assets/maps/stage-1-1/kabukicho-back-alley-boss-plaza-32bit.png",
+});
+const UI_SPRITES = loadSpriteImages({
+  exitGo: "assets/ui/exit-go/sheet-transparent.png",
+});
 
 const ITEM_TYPES = {
   onigiri: { icon: "🍙", heal: 10, label: "+10 HP" },
@@ -635,6 +647,28 @@ function getStageLocalArea(area = state.area) {
   return clamp(area - stageDef.startArea + 1, 1, AREAS_PER_STAGE);
 }
 
+function getWalkableTop() {
+  return WALKABLE_LANE.top;
+}
+
+function getWalkableBottom() {
+  return WALKABLE_LANE.bottom;
+}
+
+function getWalkableCenter() {
+  return (getWalkableTop() + getWalkableBottom()) / 2;
+}
+
+function randomWalkableY(topPadding = 0, bottomPadding = 0) {
+  const top = getWalkableTop() + topPadding;
+  const bottom = getWalkableBottom() - bottomPadding;
+  return top + Math.random() * Math.max(1, bottom - top);
+}
+
+function clampWalkableY(y, topPadding = 0, bottomPadding = 0) {
+  return clamp(y, getWalkableTop() + topPadding, getWalkableBottom() - bottomPadding);
+}
+
 function areMainStagesCleared() {
   return STAGE_DEFS.filter((stageDef) => stageDef.stage < FINAL_STAGE_NUMBER).every((stageDef) =>
     completedStageNumbers.has(stageDef.stage),
@@ -684,7 +718,7 @@ function createPlayer() {
   const character = getCurrentPlayerCharacter();
   return {
     x: 210,
-    y: 330,
+    y: getWalkableCenter(),
     radius: 24,
     speed: character.stats.speed,
     hp: character.stats.maxHp,
@@ -716,9 +750,8 @@ function createEnemy(round = 1, index = 0) {
 
   const fromRight = true;
   const dropsIn = Math.random() < (round >= 2 ? 0.55 : 0.35);
-  const laneHeight = WORLD.floorBottom - WORLD.floorTop - 110;
   const stagger = (index % 3) * 58;
-  const baseY = WORLD.floorTop + 58 + ((Math.random() * laneHeight + stagger) % laneHeight);
+  const baseY = clampWalkableY(randomWalkableY(10, 12) + stagger * 0.16);
   const dropX = 310 + Math.random() * 330;
   const entryX = dropsIn ? dropX : fromRight ? WORLD.width - 115 - index * 34 : 115 + index * 34;
   const entryY = baseY;
@@ -727,7 +760,7 @@ function createEnemy(round = 1, index = 0) {
     type: "slow_puncher",
     name: "ゆっくり近づく敵",
     x: dropsIn ? dropX : fromRight ? WORLD.width + 70 + index * 46 : -70 - index * 46,
-    y: dropsIn ? WORLD.floorTop - 120 - index * 34 : baseY,
+    y: dropsIn ? getWalkableTop() - 120 - index * 34 : baseY,
     entryX,
     entryY,
     entryMode: dropsIn ? "drop" : "side",
@@ -759,15 +792,14 @@ function createEnemy(round = 1, index = 0) {
 function createGunnerEnemy(round = 1, index = 0) {
   const fromRight = true;
   const dropsIn = round >= 2 && Math.random() < 0.32;
-  const laneHeight = WORLD.floorBottom - WORLD.floorTop - 120;
-  const y = WORLD.floorTop + 72 + ((Math.random() * laneHeight + index * 42) % laneHeight);
+  const y = clampWalkableY(randomWalkableY(14, 14) + index * 7);
   const dropX = 420 + Math.random() * 260;
   const maxHp = scaleEnemyHp(GUNNER_ENEMY.hp + Math.min(round * 4, 22));
   return {
     type: "gunner",
     name: "銃手",
     x: dropsIn ? dropX : fromRight ? WORLD.width + 64 : -64,
-    y: dropsIn ? WORLD.floorTop - 110 - index * 28 : y,
+    y: dropsIn ? getWalkableTop() - 110 - index * 28 : y,
     entryX: dropsIn ? dropX : fromRight ? WORLD.width - 78 : 78,
     entryY: y,
     entryMode: dropsIn ? "drop" : "side",
@@ -786,7 +818,7 @@ function createGunnerEnemy(round = 1, index = 0) {
     shotsBeforeReposition: 1 + Math.floor(Math.random() * 2),
     repositioning: false,
     repositionTargetX: 590 + Math.random() * 150,
-    repositionTargetY: clamp(y + (Math.random() - 0.5) * 80, WORLD.floorTop + 52, WORLD.floorBottom - 42),
+    repositionTargetY: clampWalkableY(y + (Math.random() - 0.5) * 80, 10, 10),
     hitFlash: 0,
     hitStopTimer: 0,
     knockbackX: 0,
@@ -797,15 +829,14 @@ function createGunnerEnemy(round = 1, index = 0) {
 function createKnifeEnemy(round = 1, index = 0) {
   const fromRight = true;
   const dropsIn = round >= 2 && Math.random() < 0.36;
-  const laneHeight = WORLD.floorBottom - WORLD.floorTop - 120;
-  const y = WORLD.floorTop + 72 + ((Math.random() * laneHeight + index * 48) % laneHeight);
+  const y = clampWalkableY(randomWalkableY(14, 14) + index * 7);
   const dropX = 390 + Math.random() * 300;
   const maxHp = scaleEnemyHp(KNIFE_ENEMY.hp + Math.min(round * 4, 24));
   return {
     type: "knife_thrower",
     name: "ナイフ投げ敵",
     x: dropsIn ? dropX : fromRight ? WORLD.width + 64 : -64,
-    y: dropsIn ? WORLD.floorTop - 110 - index * 28 : y,
+    y: dropsIn ? getWalkableTop() - 110 - index * 28 : y,
     entryX: dropsIn ? dropX : fromRight ? WORLD.width - 84 : 84,
     entryY: y,
     entryMode: dropsIn ? "drop" : "side",
@@ -824,7 +855,7 @@ function createKnifeEnemy(round = 1, index = 0) {
     shotsBeforeReposition: 1 + Math.floor(Math.random() * 2),
     repositioning: false,
     repositionTargetX: 580 + Math.random() * 160,
-    repositionTargetY: clamp(y + (Math.random() - 0.5) * 80, WORLD.floorTop + 52, WORLD.floorBottom - 42),
+    repositionTargetY: clampWalkableY(y + (Math.random() - 0.5) * 80, 10, 10),
     hitFlash: 0,
     hitStopTimer: 0,
     knockbackX: 0,
@@ -833,7 +864,7 @@ function createKnifeEnemy(round = 1, index = 0) {
 }
 
 function createMidBossEnemy(round = 1) {
-  const y = WORLD.floorTop + 182;
+  const y = getWalkableCenter();
   const maxHp = scaleBossHp(MID_BOSS_ENEMY.hp + Math.min(round * 18, 180));
   const variant = getMidBossVariant(round);
   return {
@@ -885,7 +916,7 @@ function createMidBossEnemy(round = 1) {
 }
 
 function createMajorBossEnemy(round = 1) {
-  const y = WORLD.floorTop + 178;
+  const y = getWalkableCenter();
   const maxHp = scaleBossHp(MAJOR_BOSS_ENEMY.hp + Math.min(round * 22, 260));
   return {
     type: "major_boss_brawler",
@@ -942,8 +973,7 @@ function getMidBossVariant(round) {
 
 function createBikeEnemy(round = 1, index = 0) {
   const fromRight = Math.random() > 0.5;
-  const laneHeight = WORLD.floorBottom - WORLD.floorTop - 120;
-  const y = WORLD.floorTop + 72 + Math.random() * laneHeight;
+  const y = randomWalkableY(12, 12);
   const maxHp = scaleEnemyHp(BIKE_ENEMY.hp + Math.min(round * 3, 18));
   return {
     type: "bike_rusher",
@@ -966,8 +996,7 @@ function createBikeEnemy(round = 1, index = 0) {
 }
 
 function createSummonedEnemy(type, round = 1, index = 0, fromRight = true) {
-  const laneHeight = WORLD.floorBottom - WORLD.floorTop - 120;
-  const y = WORLD.floorTop + 68 + ((index * 54 + Math.random() * laneHeight) % laneHeight);
+  const y = clampWalkableY(randomWalkableY(10, 10) + index * 7);
   const xOffset = 74 + index * 18;
   const entryX = fromRight ? WORLD.width - 92 - index * 14 : 92 + index * 14;
   const enemy =
@@ -1226,17 +1255,17 @@ function isBossEnemy(enemy) {
 }
 
 function createBreakablesForWave(round) {
-  const centerY = WORLD.floorTop + 92 + Math.random() * (WORLD.floorBottom - WORLD.floorTop - 170);
+  const centerY = randomWalkableY(6, 18);
   const breakables = [
     createBreakable("crate", 410 + Math.random() * 90, centerY),
   ];
 
   if (round >= 2) {
-    breakables.push(createBreakable("barrel", 650 + Math.random() * 95, WORLD.floorTop + 120 + Math.random() * 180));
+    breakables.push(createBreakable("barrel", 650 + Math.random() * 95, randomWalkableY(8, 18)));
   }
 
   if (round >= 3 && Math.random() < 0.55) {
-    breakables.push(createBreakable("crate", 545 + Math.random() * 120, WORLD.floorTop + 90 + Math.random() * 210));
+    breakables.push(createBreakable("crate", 545 + Math.random() * 120, randomWalkableY(8, 18)));
   }
 
   return breakables;
@@ -1553,7 +1582,7 @@ function updatePlayer(dt) {
     player.y += input.moveY * player.speed * dt;
   }
   player.x = clamp(player.x, 45, WORLD.width - 45);
-  player.y = clamp(player.y, WORLD.floorTop + 32, WORLD.floorBottom - 30);
+  player.y = clampWalkableY(player.y);
 
   if (!player.isJumping && Math.abs(input.moveX) > 0.05) {
     player.facing = input.moveX > 0 ? 1 : -1;
@@ -1573,7 +1602,7 @@ function handlePlayerDefeat() {
 function revivePlayer() {
   const player = state.player;
   player.x = 92;
-  player.y = clamp(player.y, WORLD.floorTop + 44, WORLD.floorBottom - 42);
+  player.y = clampWalkableY(player.y);
   player.hp = player.maxHp;
   player.facing = 1;
   player.invincibleTimer = 3;
@@ -1981,7 +2010,7 @@ function startMidBossAttack(enemy, attackType, player) {
 
   if (attackType === "jump") {
     enemy.attackTargetX = clamp(player.x, 130, WORLD.width - 130);
-    enemy.attackTargetY = clamp(player.y, WORLD.floorTop + 52, WORLD.floorBottom - 46);
+    enemy.attackTargetY = clampWalkableY(player.y, 8, 8);
     enemy.attackWindup = getAttackWindup(MID_BOSS_ENEMY.jumpWindup, enemy);
     enemy.attackCooldown = MID_BOSS_ENEMY.attackCooldown + 1.1 + Math.random() * 0.55;
     return;
@@ -2187,7 +2216,7 @@ function clearMidBossAttackState(enemy) {
 }
 
 function fireEnemyBullet(enemy, player) {
-  const targetY = clamp(player.y - getPlayerJumpHeight(player) * 0.38, WORLD.floorTop + 24, WORLD.floorBottom - 12);
+  const targetY = clampWalkableY(player.y - getPlayerJumpHeight(player) * 0.38);
   const direction = normalize(enemy.facing, (targetY - enemy.y) / 260);
   state.projectiles.push({
     type: "enemy_bullet",
@@ -2264,7 +2293,7 @@ function updateRangedReposition(enemy, dt) {
   enemy.x += toTarget.x * ENEMY_EDGE_CONTROL.rangedMoveSpeed * dt;
   enemy.y += toTarget.y * ENEMY_EDGE_CONTROL.rangedMoveSpeed * 0.72 * dt;
   enemy.x = clamp(enemy.x, ENEMY_EDGE_CONTROL.leftComfortX, ENEMY_EDGE_CONTROL.rightComfortX);
-  enemy.y = clamp(enemy.y, WORLD.floorTop + 32, WORLD.floorBottom - 30);
+  enemy.y = clampWalkableY(enemy.y);
 
   if (Math.abs(target.x - enemy.x) < 8 && Math.abs(target.y - enemy.y) < 8) {
     enemy.x = target.x;
@@ -2276,7 +2305,7 @@ function updateRangedReposition(enemy, dt) {
 }
 
 function throwEnemyKnife(enemy, player) {
-  const targetY = clamp(player.y - getPlayerJumpHeight(player) * 0.45, WORLD.floorTop + 24, WORLD.floorBottom - 12);
+  const targetY = clampWalkableY(player.y - getPlayerJumpHeight(player) * 0.45);
   const direction = normalize(enemy.facing, (targetY - enemy.y) / 220);
   state.projectiles.push({
     type: "enemy_knife",
@@ -2413,7 +2442,7 @@ function spawnItem(itemType, x, y) {
   state.items.push({
     type: itemType,
     x,
-    y: clamp(y, WORLD.floorTop + 30, WORLD.floorBottom - 24),
+    y: clampWalkableY(y),
     radius: 18,
     age: 0,
     bobSeed: Math.random() * Math.PI * 2,
@@ -2475,7 +2504,7 @@ function nudgeEnemyFromSideEdges(enemy, dt, strength = 1) {
   }
 
   enemy.x = clamp(enemy.x, 45, WORLD.width - 45);
-  enemy.y = clamp(enemy.y, WORLD.floorTop + 32, WORLD.floorBottom - 30);
+  enemy.y = clampWalkableY(enemy.y);
 }
 
 function applyEnemyKnockback(enemy, dt, clampToStage = true) {
@@ -2485,9 +2514,9 @@ function applyEnemyKnockback(enemy, dt, clampToStage = true) {
   enemy.knockbackY *= Math.pow(0.001, dt);
   if (clampToStage) {
     enemy.x = clamp(enemy.x, 45, WORLD.width - 45);
-    enemy.y = clamp(enemy.y, WORLD.floorTop + 32, WORLD.floorBottom - 30);
+    enemy.y = clampWalkableY(enemy.y);
   } else {
-    enemy.y = clamp(enemy.y, WORLD.floorTop + 32, WORLD.floorBottom - 30);
+    enemy.y = clampWalkableY(enemy.y);
   }
 }
 
@@ -2763,7 +2792,7 @@ function enterNextArea() {
   state.wave = state.area;
   state.areaTransitionTimer = 0.58;
   state.player.x = 92;
-  state.player.y = clamp(state.player.y, WORLD.floorTop + 44, WORLD.floorBottom - 42);
+  state.player.y = clampWalkableY(state.player.y);
   state.player.facing = 1;
   state.player.comboStep = 0;
   state.player.comboTimer = 0;
@@ -2862,16 +2891,55 @@ function getAreaTheme() {
   return AREA_THEMES[(state.area - 1) % AREA_THEMES.length];
 }
 
+function getStageBackgroundSprite() {
+  const stageDef = getStageDefForArea(state.area);
+  if (stageDef.stage !== 1) return null;
+
+  const spriteKey = getStageLocalArea(state.area) >= AREAS_PER_STAGE ? "stage1Boss" : "stage1Regular";
+  const sprite = STAGE_BACKGROUND_SPRITES[spriteKey];
+  if (!sprite?.loaded || sprite.failed) return null;
+  return sprite;
+}
+
+function drawStageBackgroundImage(image) {
+  const sourceRatio = image.naturalWidth / image.naturalHeight;
+  const targetRatio = WORLD.width / WORLD.height;
+  let sourceWidth = image.naturalWidth;
+  let sourceHeight = image.naturalHeight;
+  let sourceX = 0;
+  let sourceY = 0;
+
+  if (sourceRatio > targetRatio) {
+    sourceWidth = image.naturalHeight * targetRatio;
+    sourceX = (image.naturalWidth - sourceWidth) / 2;
+  } else {
+    sourceHeight = image.naturalWidth / targetRatio;
+    sourceY = (image.naturalHeight - sourceHeight) / 2;
+  }
+
+  const previousSmoothing = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, WORLD.width, WORLD.height);
+  ctx.imageSmoothingEnabled = previousSmoothing;
+}
+
 function drawBackground() {
   const viewW = canvas.clientWidth;
   const viewH = canvas.clientHeight;
   const scaleX = viewW / WORLD.width;
   const scaleY = viewH / WORLD.height;
   const theme = getAreaTheme();
+  const stageBackgroundSprite = getStageBackgroundSprite();
 
   ctx.save();
   ctx.scale(scaleX, scaleY);
   ctx.clearRect(0, 0, WORLD.width, WORLD.height);
+
+  if (stageBackgroundSprite) {
+    drawStageBackgroundImage(stageBackgroundSprite.image);
+    ctx.restore();
+    return;
+  }
 
   const gradient = ctx.createLinearGradient(0, 0, WORLD.width, WORLD.height);
   gradient.addColorStop(0, theme.sky);
@@ -2903,47 +2971,33 @@ function drawBackground() {
 function drawExitGate(scaleX, scaleY) {
   if (!state.exitGateOpen) return;
 
-  const pulse = 0.58 + Math.sin(performance.now() / 130) * 0.22;
-  const blink = performance.now() % 760 < 430;
-  const textAlpha = blink ? 1 : 0.22;
-  const gateX = WORLD.width - 42;
-  const gateTop = WORLD.floorTop + 18;
-  const gateHeight = WORLD.floorBottom - WORLD.floorTop - 36;
+  const sprite = UI_SPRITES.exitGo;
+  const wiggle = Math.sin(performance.now() / 170) * 7;
+  const tilt = Math.sin(performance.now() / 190) * 0.018;
+  const spriteSize = 172;
+  const centerX = WORLD.width - 132 + wiggle;
+  const centerY = getWalkableBottom() - 86;
 
   ctx.save();
-  ctx.translate(gateX * scaleX, gateTop * scaleY);
   ctx.scale(scaleX, scaleY);
+  ctx.translate(centerX, centerY);
+  ctx.rotate(tilt);
 
-  ctx.fillStyle = `rgba(121, 215, 255, ${0.16 + pulse * 0.14})`;
-  ctx.fillRect(-18, 0, 36, gateHeight);
-
-  ctx.strokeStyle = `rgba(121, 215, 255, ${0.5 + pulse * 0.38})`;
-  ctx.lineWidth = 4;
-  ctx.setLineDash([14, 10]);
-  ctx.strokeRect(-18, 0, 36, gateHeight);
-
-  ctx.setLineDash([]);
-  ctx.globalAlpha = textAlpha;
-  ctx.fillStyle = "#79d7ff";
-  ctx.font = "900 26px Trebuchet MS, sans-serif";
-  ctx.textAlign = "center";
-  ctx.lineWidth = 5;
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.72)";
-  ctx.strokeText("GO!", -58, gateHeight / 2 - 16);
-  ctx.fillText("GO!", -58, gateHeight / 2 - 16);
-
-  ctx.beginPath();
-  ctx.moveTo(-58, gateHeight / 2 + 10);
-  ctx.lineTo(-22, gateHeight / 2 + 10);
-  ctx.lineTo(-35, gateHeight / 2 - 2);
-  ctx.moveTo(-22, gateHeight / 2 + 10);
-  ctx.lineTo(-35, gateHeight / 2 + 22);
-  ctx.strokeStyle = "#79d7ff";
-  ctx.lineWidth = 6;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.stroke();
-  ctx.globalAlpha = 1;
+  if (sprite?.loaded && !sprite.failed) {
+    const previousSmoothing = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sprite.image, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
+    ctx.imageSmoothingEnabled = previousSmoothing;
+  } else {
+    ctx.font = "900 38px Trebuchet MS, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "#07101f";
+    ctx.fillStyle = "#ffc857";
+    ctx.strokeText("GO→", 0, 0);
+    ctx.fillText("GO→", 0, 0);
+  }
 
   ctx.restore();
 }

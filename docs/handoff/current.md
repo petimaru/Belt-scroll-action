@@ -13,7 +13,7 @@ Copy and paste this into the next chat:
 
 まず現在のgit状態とローカルサーバー状態を確認してください。
 
-前回は、5エリア=1ステージのステージ選択制、Stage 1〜5 中ボスA〜E、Stage 6 大ボス、Stage 6ロック解除条件、cache buster `v=90` への更新まで実装しました。
+前回は、全ステージ共通の歩行可能範囲を狭め、出口表示を32-bit風ドット絵の `GO→` に差し替えました。背景生成時はこの歩行範囲に合わせるルールを追加しました。cache buster は `v=93` です。
 
 次はステージ制の確認または背景差し替えの続きを進めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
 ```
@@ -23,9 +23,9 @@ Copy and paste this into the next chat:
 - Workspace: `/Users/takedakouji/Documents/Belt scroll action`
 - GitHub: `https://github.com/petimaru/Belt-scroll-action.git`
 - Branch: `main`
-- Latest pushed commit: `babe7c7 Add major boss sprites`
-- Current cache buster: `v=90`
-- iPhone test URL when server is running: `http://192.168.0.49:4174/?v=90`
+- Latest pushed commit: `04ded08 Add stage select progression`
+- Current cache buster: `v=93`
+- iPhone test URL when server is running: `http://192.168.0.49:4174/?v=93`
 - Local server command: `python3 -m http.server 4174 --bind 0.0.0.0`
 - Current server status at handoff update: running on port 4174
 - Known untracked folders:
@@ -66,6 +66,15 @@ Copy and paste this into the next chat:
 - Stage 6 is locked until Stage 1〜5 are cleared:
   - Stage 6: Areas 26〜30, Major Boss
 - Defeating the Major Boss completes the game.
+- All stages share the same gameplay walkable lane:
+  - `WALKABLE_LANE.top: 300`
+  - `WALKABLE_LANE.bottom: 452`
+  - Player, enemies, boss targets, items, breakables, and ranged repositioning clamp to this lane.
+  - The lane is intentionally lower/narrower than the full drawn floor, so characters stay grounded on the foreground pavement and do not appear to float in the distant alley.
+- Stage 1 background images are wired into `main.js` only for Stage 1:
+  - Areas 1〜4: `assets/maps/stage-1-1/kabukicho-back-alley-bg-32bit.png`
+  - Area 5 boss area: `assets/maps/stage-1-1/kabukicho-back-alley-boss-plaza-32bit.png`
+  - Stage 2+ still use the old Canvas gradient backgrounds.
 - Continue screen exists with countdown.
 - Jump avoids normal attacks, knives, bullets, bike rushes, and boss radial attacks.
 
@@ -210,6 +219,20 @@ Copy and paste this into the next chat:
   - Mid Boss E: summon
   - Major Boss: all current mid-boss techniques, including summon
   - Mid Boss E waits until summoned enemies are defeated, then waits 10 seconds before summoning again.
+
+- Stage backgrounds:
+  - `STAGE_BACKGROUND_SPRITES` loads Stage 1 background candidates.
+  - `getStageBackgroundSprite()` selects Stage 1 regular or boss background.
+  - `drawStageBackgroundImage()` draws the image with cover-crop and pixelated smoothing.
+  - If image loading fails, `drawBackground()` falls back to the old gradient background.
+  - `stage-1-1-bg-preview.html` remains a comparison page and is not used by the runtime.
+  - Background generation rule: every future stage background prompt must be framed for the shared 960x540 gameplay walkable lane `y=300〜452`.
+  - Future backgrounds should keep the lower foreground pavement between `y=300〜452` clear and visually grounded, with distant alley/floor detail above that range treated as background depth, not a playable lane.
+  - Do not place blocking foreground props, doors, crates, vehicles, readable text, UI, actors, or enemies in the walkable lane unless they will be separate runtime objects.
+  - The right-side exit area must align visually with this lane, and boss-area backgrounds should still leave a believable rightward route after the boss is defeated.
+  - `drawExitGate()` now uses the shared 32-bit-style `GO→` sprite for all stages instead of the old light-blue ground marker.
+  - Runtime asset: `assets/ui/exit-go/sheet-transparent.png`
+  - Preview page: `go-arrow-preview.html`
 
 ## Sprite Assets
 
@@ -371,7 +394,8 @@ Current enemy visual sizes in `ENEMY_SPRITE_DEFS`:
 
 - Last checked status:
   - `main...origin/main`
-  - modified: `docs/handoff/current.md`, `index.html`, `main.js`, `sprite-height-compare.html`, `style.css`
+  - modified: `docs/handoff/current.md`, `index.html`, `main.js`
+  - untracked: `assets/maps/`, `stage-1-1-bg-preview.html`
   - untracked: old walk-animation experiment files plus known `.playwright-cli/`, `output/`, `tmp/`
 - Last pushed commit:
   - `babe7c7 Add major boss sprites`
@@ -385,7 +409,7 @@ python3 -m http.server 4174 --bind 0.0.0.0
 Then open:
 
 ```text
-http://192.168.0.49:4174/?v=90
+http://192.168.0.49:4174/?v=92
 ```
 
 Sprite comparison page:
@@ -413,7 +437,7 @@ git status --short --branch
 If server is running:
 
 ```sh
-curl -I 'http://127.0.0.1:4174/?v=90'
+curl -I 'http://127.0.0.1:4174/?v=92'
 curl -I 'http://127.0.0.1:4174/sprite-height-compare.html'
 curl -I 'http://127.0.0.1:4174/boss-aura-compare.html'
 curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_charge_idle.png'
@@ -441,9 +465,12 @@ curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/major_boss/major_boss_idle.p
 
 - Continue in this order unless the user chooses otherwise:
   1. Play-test Stage Select on Mac and iPhone.
-  2. Confirm Stage 1〜5 clear flow and Stage 6 unlock.
-  3. Confirm Major Boss defeat shows game clear.
-  4. Background image replacement per Stage.
-  5. Attack/projectile effects.
-  6. Items/breakables.
+  2. Confirm the shared walkable lane feels good on iPhone and Mac.
+  3. Confirm the new 32-bit-style `GO→` exit display feels good on iPhone and Mac.
+  4. Confirm Stage 1 background in Areas 1〜4 and boss background in Area 5.
+  5. Confirm Stage 1〜5 clear flow and Stage 6 unlock.
+  6. Confirm Major Boss defeat shows game clear.
+  7. Background image replacement for Stage 2+ using the shared walkable-lane rule.
+  8. Attack/projectile effects.
+  9. Items/breakables.
 - Consider LocalStorage later for selected character and difficulty.
