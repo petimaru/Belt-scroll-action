@@ -503,8 +503,11 @@ const BOSS_SCHEDULE = STAGE_DEFS.map((stageDef) => ({
   debugLabel: stageDef.bossLabel,
 }));
 const STAGE_BACKGROUND_SPRITES = loadSpriteImages({
-  stage1Regular: "assets/maps/stage-1-1/kabukicho-back-alley-bg-32bit.png",
-  stage1Boss: "assets/maps/stage-1-1/kabukicho-back-alley-boss-plaza-32bit.png",
+  stage1Area1: "assets/maps/stage-1-walkable/stage-1-1.png",
+  stage1Area2: "assets/maps/stage-1-walkable/stage-1-2.png",
+  stage1Area3: "assets/maps/stage-1-walkable/stage-1-3.png",
+  stage1Area4: "assets/maps/stage-1-walkable/stage-1-4.png",
+  stage1Area5: "assets/maps/stage-1-walkable/stage-1-5.png",
 });
 const UI_SPRITES = loadSpriteImages({
   exitGo: "assets/ui/exit-go/sheet-transparent.png",
@@ -2895,7 +2898,7 @@ function getStageBackgroundSprite() {
   const stageDef = getStageDefForArea(state.area);
   if (stageDef.stage !== 1) return null;
 
-  const spriteKey = getStageLocalArea(state.area) >= AREAS_PER_STAGE ? "stage1Boss" : "stage1Regular";
+  const spriteKey = `stage1Area${getStageLocalArea(state.area)}`;
   const sprite = STAGE_BACKGROUND_SPRITES[spriteKey];
   if (!sprite?.loaded || sprite.failed) return null;
   return sprite;

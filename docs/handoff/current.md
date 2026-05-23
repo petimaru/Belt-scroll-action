@@ -13,7 +13,7 @@ Copy and paste this into the next chat:
 
 まず現在のgit状態とローカルサーバー状態を確認してください。
 
-前回は、全ステージ共通の歩行可能範囲を狭め、出口表示を32-bit風ドット絵の `GO→` に差し替えました。背景生成時はこの歩行範囲に合わせるルールを追加しました。cache buster は `v=93` です。
+前回は、Stage 1-1〜1-5 の背景を歩行範囲に合わせた再編集版へ差し替え、出口表示は32-bit風ドット絵の `GO→` のまま維持しました。cache buster は `v=95` です。
 
 次はステージ制の確認または背景差し替えの続きを進めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
 ```
@@ -23,9 +23,9 @@ Copy and paste this into the next chat:
 - Workspace: `/Users/takedakouji/Documents/Belt scroll action`
 - GitHub: `https://github.com/petimaru/Belt-scroll-action.git`
 - Branch: `main`
-- Latest pushed commit: `04ded08 Add stage select progression`
-- Current cache buster: `v=93`
-- iPhone test URL when server is running: `http://192.168.0.49:4174/?v=93`
+- Latest pushed commit: `7f480a6 Add stage one backgrounds and pixel exit prompt`
+- Current cache buster: `v=95`
+- iPhone test URL when server is running: `http://192.168.0.49:4174/?v=95`
 - Local server command: `python3 -m http.server 4174 --bind 0.0.0.0`
 - Current server status at handoff update: running on port 4174
 - Known untracked folders:
@@ -72,8 +72,12 @@ Copy and paste this into the next chat:
   - Player, enemies, boss targets, items, breakables, and ranged repositioning clamp to this lane.
   - The lane is intentionally lower/narrower than the full drawn floor, so characters stay grounded on the foreground pavement and do not appear to float in the distant alley.
 - Stage 1 background images are wired into `main.js` only for Stage 1:
-  - Areas 1〜4: `assets/maps/stage-1-1/kabukicho-back-alley-bg-32bit.png`
-  - Area 5 boss area: `assets/maps/stage-1-1/kabukicho-back-alley-boss-plaza-32bit.png`
+  - Area 1: `assets/maps/stage-1-walkable/stage-1-1.png`
+  - Area 2: `assets/maps/stage-1-walkable/stage-1-2.png`
+  - Area 3: `assets/maps/stage-1-walkable/stage-1-3.png`
+  - Area 4: `assets/maps/stage-1-walkable/stage-1-4.png`
+  - Area 5 boss area: `assets/maps/stage-1-walkable/stage-1-5.png`
+  - 1-1, 1-4, and 1-5 were shifted upward by about 10% after editing so the top of the walkable lane does not visually collide with buildings/crowds.
   - Stage 2+ still use the old Canvas gradient backgrounds.
 - Continue screen exists with countdown.
 - Jump avoids normal attacks, knives, bullets, bike rushes, and boss radial attacks.
@@ -221,8 +225,8 @@ Copy and paste this into the next chat:
   - Mid Boss E waits until summoned enemies are defeated, then waits 10 seconds before summoning again.
 
 - Stage backgrounds:
-  - `STAGE_BACKGROUND_SPRITES` loads Stage 1 background candidates.
-  - `getStageBackgroundSprite()` selects Stage 1 regular or boss background.
+  - `STAGE_BACKGROUND_SPRITES` loads Stage 1-1〜1-5 background images.
+  - `getStageBackgroundSprite()` selects the Stage 1 background by local area number.
   - `drawStageBackgroundImage()` draws the image with cover-crop and pixelated smoothing.
   - If image loading fails, `drawBackground()` falls back to the old gradient background.
   - `stage-1-1-bg-preview.html` remains a comparison page and is not used by the runtime.
@@ -394,11 +398,11 @@ Current enemy visual sizes in `ENEMY_SPRITE_DEFS`:
 
 - Last checked status:
   - `main...origin/main`
-  - modified: `docs/handoff/current.md`, `index.html`, `main.js`
-  - untracked: `assets/maps/`, `stage-1-1-bg-preview.html`
+  - modified: `docs/handoff/current.md`, `index.html`, `main.js`, `stage-1-1-bg-preview.html`
+  - untracked: `assets/maps/stage-1-walkable/`, `stage-1-walkable-preview.html`
   - untracked: old walk-animation experiment files plus known `.playwright-cli/`, `output/`, `tmp/`
 - Last pushed commit:
-  - `babe7c7 Add major boss sprites`
+  - `7f480a6 Add stage one backgrounds and pixel exit prompt`
 - Server was running on port 4174 when this handoff was updated.
 - Start server before iPhone testing:
 
@@ -409,7 +413,7 @@ python3 -m http.server 4174 --bind 0.0.0.0
 Then open:
 
 ```text
-http://192.168.0.49:4174/?v=92
+http://192.168.0.49:4174/?v=95
 ```
 
 Sprite comparison page:
@@ -437,7 +441,7 @@ git status --short --branch
 If server is running:
 
 ```sh
-curl -I 'http://127.0.0.1:4174/?v=92'
+curl -I 'http://127.0.0.1:4174/?v=95'
 curl -I 'http://127.0.0.1:4174/sprite-height-compare.html'
 curl -I 'http://127.0.0.1:4174/boss-aura-compare.html'
 curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_charge_idle.png'

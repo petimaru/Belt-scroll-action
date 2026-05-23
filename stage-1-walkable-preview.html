@@ -3,7 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Stage 1 Background Preview</title>
+    <link rel="icon" href="data:," />
+    <title>Stage 1 Walkable Background Preview</title>
     <style>
       :root {
         color: #f6f0df;
@@ -31,7 +32,7 @@
 
       .toolbar {
         display: flex;
-        align-items: center;
+        align-items: end;
         justify-content: space-between;
         gap: 12px;
         margin-bottom: 12px;
@@ -56,7 +57,8 @@
         margin-bottom: 12px;
       }
 
-      .variant-button {
+      .variant-button,
+      .toggle-button {
         min-height: 36px;
         padding: 8px 12px;
         border: 1px solid rgba(255, 232, 180, 0.24);
@@ -68,7 +70,8 @@
         cursor: pointer;
       }
 
-      .variant-button.is-selected {
+      .variant-button.is-selected,
+      .toggle-button.is-selected {
         border-color: rgba(255, 200, 87, 0.72);
         background: rgba(255, 200, 87, 0.18);
       }
@@ -94,18 +97,25 @@
         width: 100%;
         height: 100%;
         object-fit: cover;
+        image-rendering: pixelated;
       }
 
       .lane {
         position: absolute;
-        left: 4%;
-        right: 4%;
-        bottom: 9%;
-        height: 38%;
-        border: 1px solid rgba(121, 215, 255, 0.26);
-        border-radius: 18px;
-        background: rgba(121, 215, 255, 0.05);
+        left: 0;
+        right: 0;
+        top: 55.56%;
+        height: 28.15%;
+        border-top: 2px solid rgba(121, 215, 255, 0.82);
+        border-bottom: 2px solid rgba(121, 215, 255, 0.82);
+        background:
+          linear-gradient(rgba(121, 215, 255, 0.12), rgba(121, 215, 255, 0.04)),
+          repeating-linear-gradient(90deg, rgba(121, 215, 255, 0.18) 0 2px, transparent 2px 48px);
         pointer-events: none;
+      }
+
+      body:not(.show-lane) .lane {
+        display: none;
       }
 
       .actor {
@@ -118,23 +128,23 @@
       }
 
       .petiman {
-        left: 34%;
+        left: 30%;
         --actor-h: 18%;
       }
 
       .rooeeebee {
-        left: 46%;
+        left: 44%;
         --actor-h: 21%;
       }
 
       .slow-puncher {
-        left: 63%;
+        left: 62%;
         --actor-h: 26%;
         transform: translateX(-50%) scaleX(-1);
       }
 
       .knife-thrower {
-        left: 76%;
+        left: 78%;
         --actor-h: 26%;
         transform: translateX(-50%) scaleX(-1);
       }
@@ -160,11 +170,14 @@
       }
     </style>
   </head>
-  <body>
+  <body class="show-lane">
     <main>
       <div class="toolbar">
-        <h1>Stage 1 Background Preview</h1>
-        <p>Stage 1-1〜1-5 背景確認。本編と同じ画像を表示。</p>
+        <div>
+          <h1>Stage 1 Walkable Preview</h1>
+          <p>y=300〜452 の歩行範囲に合わせて再編集した背景候補。</p>
+        </div>
+        <button id="laneToggle" class="toggle-button is-selected" type="button">Lane</button>
       </div>
 
       <div class="variant-actions" aria-label="背景候補切り替え">
@@ -177,7 +190,7 @@
 
       <section class="stage-wrap">
         <div class="stage">
-          <img id="backgroundImage" class="background" src="assets/maps/stage-1-walkable/stage-1-1.png" alt="Stage 1-1 background" />
+          <img id="backgroundImage" class="background" src="assets/maps/stage-1-walkable/stage-1-1.png" alt="Stage 1-1 walkable background" />
           <div class="lane" aria-hidden="true"></div>
           <img class="actor petiman" src="assets/sprites/player/petiman-idle.png" alt="PETIMAN" />
           <img class="actor rooeeebee" src="assets/sprites/player/rooeeebee-idle.png" alt="ROOEEBEE" />
@@ -185,8 +198,8 @@
           <img class="actor knife-thrower" src="assets/sprites/enemy/general/knife_thrower_idle.png" alt="knife thrower" />
         </div>
         <div class="caption">
-          <span id="backgroundLabel">Stage 1-1: entrance street</span>
-          <span>Actors: PETIMAN, ROOEEBEE, slow_puncher, knife_thrower</span>
+          <span id="backgroundLabel">Stage 1-1: walkable entrance street edit</span>
+          <span>Lane overlay: y=300〜452</span>
         </div>
       </section>
     </main>
@@ -194,32 +207,35 @@
       const backgrounds = {
         stage11: {
           src: "assets/maps/stage-1-walkable/stage-1-1.png",
-          alt: "Stage 1-1 background",
-          label: "Stage 1-1: entrance street",
+          alt: "Stage 1-1 walkable background",
+          label: "Stage 1-1: walkable entrance street edit",
         },
         stage12: {
           src: "assets/maps/stage-1-walkable/stage-1-2.png",
-          alt: "Stage 1-2 background",
-          label: "Stage 1-2: neon shopping street",
+          alt: "Stage 1-2 walkable background",
+          label: "Stage 1-2: walkable neon shopping street edit",
         },
         stage13: {
           src: "assets/maps/stage-1-walkable/stage-1-3.png",
-          alt: "Stage 1-3 background",
-          label: "Stage 1-3: storefront street",
+          alt: "Stage 1-3 walkable background",
+          label: "Stage 1-3: walkable storefront street edit",
         },
         stage14: {
           src: "assets/maps/stage-1-walkable/stage-1-4.png",
-          alt: "Stage 1-4 background",
-          label: "Stage 1-4: restaurant street",
+          alt: "Stage 1-4 walkable background",
+          label: "Stage 1-4: walkable restaurant street edit",
         },
         stage15: {
           src: "assets/maps/stage-1-walkable/stage-1-5.png",
-          alt: "Stage 1-5 background",
-          label: "Stage 1-5: boss plaza",
+          alt: "Stage 1-5 walkable boss plaza background",
+          label: "Stage 1-5: walkable boss plaza edit",
         },
       };
+
       const backgroundImage = document.querySelector("#backgroundImage");
       const backgroundLabel = document.querySelector("#backgroundLabel");
+      const laneToggle = document.querySelector("#laneToggle");
+
       document.querySelectorAll("[data-bg]").forEach((button) => {
         button.addEventListener("click", () => {
           const background = backgrounds[button.dataset.bg];
@@ -230,6 +246,11 @@
             otherButton.classList.toggle("is-selected", otherButton === button);
           });
         });
+      });
+
+      laneToggle.addEventListener("click", () => {
+        document.body.classList.toggle("show-lane");
+        laneToggle.classList.toggle("is-selected", document.body.classList.contains("show-lane"));
       });
     </script>
   </body>
