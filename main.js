@@ -513,6 +513,11 @@ const STAGE_BACKGROUND_SPRITES = loadSpriteImages({
   stage2Area3: "assets/maps/stage-2/stage-2-3.png",
   stage2Area4: "assets/maps/stage-2/stage-2-4.png",
   stage2Area5: "assets/maps/stage-2/stage-2-5.png",
+  stage3Area1: "assets/maps/stage-3/stage-3-4.png",
+  stage3Area2: "assets/maps/stage-3/stage-3-1.png",
+  stage3Area3: "assets/maps/stage-3/stage-3-3.png",
+  stage3Area4: "assets/maps/stage-3/stage-3-2.png",
+  stage3Area5: "assets/maps/stage-3/stage-3-5.png",
 });
 const UI_SPRITES = loadSpriteImages({
   exitGo: "assets/ui/exit-go/sheet-transparent.png",
@@ -2901,7 +2906,6 @@ function getAreaTheme() {
 
 function getStageBackgroundSprite() {
   const stageDef = getStageDefForArea(state.area);
-  if (stageDef.stage !== 1 && stageDef.stage !== 2) return null;
 
   const spriteKey = `stage${stageDef.stage}Area${getStageLocalArea(state.area)}`;
   const sprite = STAGE_BACKGROUND_SPRITES[spriteKey];
