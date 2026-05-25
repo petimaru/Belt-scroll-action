@@ -2,7 +2,7 @@
 
 > Temporary handoff note for continuing development.
 > Source of truth is the code and Git history. If this file conflicts with code, trust the code.
-> Last updated: 2026-05-22
+> Last updated: 2026-05-25
 
 ## New Chat Instruction
 
@@ -13,7 +13,7 @@ Copy and paste this into the next chat:
 
 まず現在のgit状態とローカルサーバー状態を確認してください。
 
-前回は、Stage 1-1〜1-5 の背景を歩行範囲に合わせた再編集版へ差し替え、出口表示は32-bit風ドット絵の `GO→` のまま維持しました。cache buster は `v=95` です。
+前回は、Stage 2-1〜2-5 の新木場レスリング地区背景を作成し、本編へ差し替えました。その後、Stage 2-5 はユーザー提供の新木場1st RING参考画像に合わせて、黒い倉庫正面・大きいシャッター・開けた前広場の見た目に更新しました。cache buster は `v=97` です。
 
 次はステージ制の確認または背景差し替えの続きを進めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
 ```
@@ -23,11 +23,11 @@ Copy and paste this into the next chat:
 - Workspace: `/Users/takedakouji/Documents/Belt scroll action`
 - GitHub: `https://github.com/petimaru/Belt-scroll-action.git`
 - Branch: `main`
-- Latest pushed commit: `7f480a6 Add stage one backgrounds and pixel exit prompt`
-- Current cache buster: `v=95`
-- iPhone test URL when server is running: `http://192.168.0.49:4174/?v=95`
+- Latest pushed commit: `fb62479 Use walkable-aligned stage one backgrounds`
+- Current cache buster: `v=97`
+- iPhone test URL when server is running: `http://192.168.0.49:4174/?v=97`
 - Local server command: `python3 -m http.server 4174 --bind 0.0.0.0`
-- Current server status at handoff update: running on port 4174
+- Current server status at handoff update: port 4174 had a stale empty response; verification server started on port 4175
 - Known untracked folders:
   - `.playwright-cli/`
   - `output/`
@@ -71,14 +71,23 @@ Copy and paste this into the next chat:
   - `WALKABLE_LANE.bottom: 452`
   - Player, enemies, boss targets, items, breakables, and ranged repositioning clamp to this lane.
   - The lane is intentionally lower/narrower than the full drawn floor, so characters stay grounded on the foreground pavement and do not appear to float in the distant alley.
-- Stage 1 background images are wired into `main.js` only for Stage 1:
+- Stage 1 background images are wired into `main.js`:
   - Area 1: `assets/maps/stage-1-walkable/stage-1-1.png`
   - Area 2: `assets/maps/stage-1-walkable/stage-1-2.png`
   - Area 3: `assets/maps/stage-1-walkable/stage-1-3.png`
   - Area 4: `assets/maps/stage-1-walkable/stage-1-4.png`
   - Area 5 boss area: `assets/maps/stage-1-walkable/stage-1-5.png`
   - 1-1, 1-4, and 1-5 were shifted upward by about 10% after editing so the top of the walkable lane does not visually collide with buildings/crowds.
-  - Stage 2+ still use the old Canvas gradient backgrounds.
+- Stage 2 background images are wired into `main.js`:
+  - Area 1: `assets/maps/stage-2/stage-2-1.png`
+  - Area 2: `assets/maps/stage-2/stage-2-2.png`
+  - Area 3: `assets/maps/stage-2/stage-2-3.png`
+  - Area 4: `assets/maps/stage-2/stage-2-4.png`
+  - Area 5 boss area: `assets/maps/stage-2/stage-2-5.png` (revised to match the user's Shinkiba 1st RING reference photo: dark warehouse frontage, large shutter doors, open plaza)
+  - Theme: Shinkiba wrestling district, progressing from warehouses to venue front.
+  - QA report: `docs/handoff/stage-2-backgrounds.md`
+  - Preview page: `stage-2-background-preview.html`
+  - Stage 3+ still use the old Canvas gradient backgrounds.
 - Continue screen exists with countdown.
 - Jump avoids normal attacks, knives, bullets, bike rushes, and boss radial attacks.
 
@@ -225,8 +234,8 @@ Copy and paste this into the next chat:
   - Mid Boss E waits until summoned enemies are defeated, then waits 10 seconds before summoning again.
 
 - Stage backgrounds:
-  - `STAGE_BACKGROUND_SPRITES` loads Stage 1-1〜1-5 background images.
-  - `getStageBackgroundSprite()` selects the Stage 1 background by local area number.
+  - `STAGE_BACKGROUND_SPRITES` loads Stage 1-1〜1-5 and Stage 2-1〜2-5 background images.
+  - `getStageBackgroundSprite()` selects the Stage 1 or Stage 2 background by stage/local area number.
   - `drawStageBackgroundImage()` draws the image with cover-crop and pixelated smoothing.
   - If image loading fails, `drawBackground()` falls back to the old gradient background.
   - `stage-1-1-bg-preview.html` remains a comparison page and is not used by the runtime.
@@ -413,7 +422,19 @@ python3 -m http.server 4174 --bind 0.0.0.0
 Then open:
 
 ```text
-http://192.168.0.49:4174/?v=95
+http://192.168.0.49:4174/?v=97
+```
+
+If port 4174 returns an empty response, use another port, for example:
+
+```sh
+python3 -m http.server 4175 --bind 0.0.0.0
+```
+
+Then open:
+
+```text
+http://192.168.0.49:4175/?v=97
 ```
 
 Sprite comparison page:
@@ -441,7 +462,7 @@ git status --short --branch
 If server is running:
 
 ```sh
-curl -I 'http://127.0.0.1:4174/?v=95'
+curl -I 'http://127.0.0.1:4174/?v=97'
 curl -I 'http://127.0.0.1:4174/sprite-height-compare.html'
 curl -I 'http://127.0.0.1:4174/boss-aura-compare.html'
 curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_charge_idle.png'
@@ -471,10 +492,10 @@ curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/major_boss/major_boss_idle.p
   1. Play-test Stage Select on Mac and iPhone.
   2. Confirm the shared walkable lane feels good on iPhone and Mac.
   3. Confirm the new 32-bit-style `GO→` exit display feels good on iPhone and Mac.
-  4. Confirm Stage 1 background in Areas 1〜4 and boss background in Area 5.
+  4. Confirm Stage 1 and Stage 2 backgrounds on Mac and iPhone.
   5. Confirm Stage 1〜5 clear flow and Stage 6 unlock.
   6. Confirm Major Boss defeat shows game clear.
-  7. Background image replacement for Stage 2+ using the shared walkable-lane rule.
+  7. Background image replacement for Stage 3+ using the shared walkable-lane rule.
   8. Attack/projectile effects.
   9. Items/breakables.
 - Consider LocalStorage later for selected character and difficulty.
