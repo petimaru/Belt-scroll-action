@@ -13,9 +13,9 @@ Copy and paste this into the next chat:
 
 まず現在のgit状態とローカルサーバー状態を確認してください。
 
-前回は、Stage 4-1〜4-5 の横浜・関内ルート背景を作成し、本編へ差し替えました。cache buster は `v=100` です。まだコミット/プッシュ前なら、作業対象ファイルだけを確認してから stage してください。
+前回は、Stage 5-1〜5-5 の東京・水道橋/後楽園ルート背景を作成し、本編へ差し替えました。cache buster は `v=101` です。まだコミット/プッシュ前なら、作業対象ファイルだけを確認してから stage してください。
 
-次は Stage 4 のMac/iPhone確認、または Stage 5 以降の背景差し替えを進めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
+次は Stage 5 のMac/iPhone確認、または Stage 6 背景差し替えを進めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
 ```
 
 ## Project
@@ -23,9 +23,9 @@ Copy and paste this into the next chat:
 - Workspace: `/Users/takedakouji/Documents/Belt scroll action`
 - GitHub: `https://github.com/petimaru/Belt-scroll-action.git`
 - Branch: `main`
-- Latest pushed commit: `24f9b93 Add stage three backgrounds`
-- Current cache buster: `v=100`
-- iPhone test URL when server is running on the current working port: `http://192.168.0.49:4177/?v=100`
+- Latest pushed commit: `c73e7ed Add stage four backgrounds`
+- Current cache buster: `v=101`
+- iPhone test URL when server is running on the current working port: `http://192.168.0.49:4177/?v=101`
 - Local server command for the current working port: `python3 -m http.server 4177 --bind 0.0.0.0`
 - Current server status at handoff update: port 4177 is running and returns `200 OK`; ports 4174 and 4176 had Python listeners but returned an empty response, so prefer 4177.
 - Known untracked folders:
@@ -108,7 +108,17 @@ Copy and paste this into the next chat:
   - QA report: `docs/handoff/stage-4-backgrounds.md`
   - Preview page: `stage-4-background-preview.html`
   - The first generated direction was rejected because it was too bright and inconsistent with Stage 1〜3. Accepted images use night, wet pavement, saturated lighting, and 32-bit arcade mood.
-  - Stage 5+ still use the old Canvas gradient backgrounds.
+- Stage 5 background images are wired into `main.js`:
+  - Area 1: `assets/maps/stage-5/stage-5-1.png`
+  - Area 2: `assets/maps/stage-5/stage-5-2.png`
+  - Area 3: `assets/maps/stage-5/stage-5-3.png`
+  - Area 4: `assets/maps/stage-5/stage-5-4.png`
+  - Area 5 boss area: `assets/maps/stage-5/stage-5-5.png`
+  - Theme: Tokyo Suidobashi / Korakuen route, progressing from station west exit to a Korakuen Hall-style boss entrance.
+  - QA report: `docs/handoff/stage-5-backgrounds.md`
+  - Preview page: `stage-5-background-preview.html`
+  - Accepted images use night, wet pavement, saturated lighting, and 32-bit arcade mood to match Stage 1〜4.
+  - Stage 6 still uses the old Canvas gradient backgrounds.
 - Continue screen exists with countdown.
 - Jump avoids normal attacks, knives, bullets, bike rushes, and boss radial attacks.
 
@@ -428,10 +438,10 @@ Current enemy visual sizes in `ENEMY_SPRITE_DEFS`:
 
 - Last checked status:
   - `main...origin/main`
-  - Stage 4 background files are currently part of the active working-tree change unless already committed
+  - Stage 5 background files are currently part of the active working-tree change unless already committed
   - untracked: known experimental/background raw files plus known `.playwright-cli/`, `output/`, `tmp/`
 - Last pushed commit:
-  - `24f9b93 Add stage three backgrounds`
+  - `c73e7ed Add stage four backgrounds`
 - Server was running on port 4177 when this handoff was updated.
 - Ports 4174 and 4176 had Python listeners but returned an empty response, so use 4177 first.
 - Start server before iPhone testing:
@@ -443,7 +453,7 @@ python3 -m http.server 4177 --bind 0.0.0.0
 Then open:
 
 ```text
-http://192.168.0.49:4177/?v=100
+http://192.168.0.49:4177/?v=101
 ```
 
 If port 4177 is busy or returns an empty response, use another free port, for example:
@@ -455,7 +465,7 @@ python3 -m http.server 4178 --bind 0.0.0.0
 Then open:
 
 ```text
-http://192.168.0.49:4178/?v=100
+http://192.168.0.49:4178/?v=101
 ```
 
 Sprite comparison page:
@@ -483,10 +493,10 @@ git status --short --branch
 If server is running:
 
 ```sh
-curl -I 'http://127.0.0.1:4177/?v=100'
-curl -I 'http://127.0.0.1:4177/stage-4-background-preview.html'
-curl -I 'http://127.0.0.1:4177/assets/maps/stage-4/stage-4-1.png'
-curl -I 'http://127.0.0.1:4177/assets/maps/stage-4/stage-4-5.png'
+curl -I 'http://127.0.0.1:4177/?v=101'
+curl -I 'http://127.0.0.1:4177/stage-5-background-preview.html'
+curl -I 'http://127.0.0.1:4177/assets/maps/stage-5/stage-5-1.png'
+curl -I 'http://127.0.0.1:4177/assets/maps/stage-5/stage-5-5.png'
 curl -I 'http://127.0.0.1:4177/sprite-height-compare.html'
 curl -I 'http://127.0.0.1:4177/boss-aura-compare.html'
 ```
@@ -509,10 +519,10 @@ curl -I 'http://127.0.0.1:4177/boss-aura-compare.html'
   1. Play-test Stage Select on Mac and iPhone.
   2. Confirm the shared walkable lane feels good on iPhone and Mac.
   3. Confirm the new 32-bit-style `GO→` exit display feels good on iPhone and Mac.
-  4. Confirm Stage 1, Stage 2, Stage 3, and Stage 4 backgrounds on Mac and iPhone.
+  4. Confirm Stage 1, Stage 2, Stage 3, Stage 4, and Stage 5 backgrounds on Mac and iPhone.
   5. Confirm Stage 1〜5 clear flow and Stage 6 unlock.
   6. Confirm Major Boss defeat shows game clear.
-  7. Background image replacement for Stage 5+ using the shared walkable-lane rule.
+  7. Background image replacement for Stage 6 using the shared walkable-lane rule.
   8. Attack/projectile effects.
   9. Items/breakables.
 - Consider LocalStorage later for selected character and difficulty.

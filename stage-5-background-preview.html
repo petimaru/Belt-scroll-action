@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>Stage 5 Background Preview</title>
+    <style>
+      :root {
+        color: #f6f0df;
+        background: #111411;
+        font-family: "Trebuchet MS", "Hiragino Sans", "Yu Gothic", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100svh;
+        margin: 0;
+        padding: 18px;
+        background:
+          radial-gradient(circle at top left, rgba(255, 200, 87, 0.12), transparent 30rem),
+          linear-gradient(145deg, #101713, #1a1c1f 56%, #0f1215);
+      }
+
+      main {
+        width: min(100%, 1120px);
+        margin: 0 auto;
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      h1 {
+        margin: 0;
+        color: #ffc857;
+        font-size: clamp(20px, 3vw, 32px);
+      }
+
+      .toolbar p {
+        margin: 0;
+        color: rgba(246, 240, 223, 0.72);
+        font-size: 13px;
+      }
+
+      .variant-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .variant-button,
+      .toggle-button {
+        min-height: 36px;
+        padding: 8px 12px;
+        border: 1px solid rgba(255, 232, 180, 0.24);
+        border-radius: 8px;
+        background: rgba(18, 25, 19, 0.88);
+        color: #f6f0df;
+        font: inherit;
+        font-weight: 900;
+        cursor: pointer;
+      }
+
+      .variant-button.is-selected,
+      .toggle-button.is-selected {
+        border-color: rgba(255, 200, 87, 0.72);
+        background: rgba(255, 200, 87, 0.18);
+      }
+
+      .stage-wrap {
+        overflow: hidden;
+        border: 1px solid rgba(255, 232, 180, 0.22);
+        border-radius: 14px;
+        background: rgba(0, 0, 0, 0.42);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+      }
+
+      .stage {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        overflow: hidden;
+      }
+
+      .background {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        image-rendering: pixelated;
+      }
+
+      .lane {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 55.56%;
+        height: 28.15%;
+        border-top: 2px solid rgba(121, 215, 255, 0.82);
+        border-bottom: 2px solid rgba(121, 215, 255, 0.82);
+        background:
+          linear-gradient(rgba(121, 215, 255, 0.12), rgba(121, 215, 255, 0.04)),
+          repeating-linear-gradient(90deg, rgba(121, 215, 255, 0.18) 0 2px, transparent 2px 48px);
+        pointer-events: none;
+      }
+
+      body:not(.show-lane) .lane {
+        display: none;
+      }
+
+      .actor {
+        position: absolute;
+        bottom: 13%;
+        height: var(--actor-h);
+        transform: translateX(-50%);
+        image-rendering: pixelated;
+        filter: drop-shadow(0 12px 14px rgba(0, 0, 0, 0.58));
+      }
+
+      .petiman {
+        left: 30%;
+        --actor-h: 18%;
+      }
+
+      .rooeeebee {
+        left: 44%;
+        --actor-h: 21%;
+      }
+
+      .slow-puncher {
+        left: 62%;
+        --actor-h: 26%;
+        transform: translateX(-50%) scaleX(-1);
+      }
+
+      .knife-thrower {
+        left: 78%;
+        --actor-h: 26%;
+        transform: translateX(-50%) scaleX(-1);
+      }
+
+      .caption {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        color: rgba(246, 240, 223, 0.78);
+        font-size: 13px;
+      }
+
+      @media (max-width: 720px) {
+        body {
+          padding: 10px;
+        }
+
+        .toolbar,
+        .caption {
+          display: grid;
+        }
+      }
+    </style>
+  </head>
+  <body class="show-lane">
+    <main>
+      <div class="toolbar">
+        <div>
+          <h1>Stage 5 Background Preview</h1>
+          <p>東京・水道橋ルート。y=300〜452 の歩行範囲確認。</p>
+        </div>
+        <button id="laneToggle" class="toggle-button is-selected" type="button">Lane</button>
+      </div>
+
+      <div class="variant-actions" aria-label="背景候補切り替え">
+        <button class="variant-button is-selected" type="button" data-bg="stage51">Stage 5-1</button>
+        <button class="variant-button" type="button" data-bg="stage52">Stage 5-2</button>
+        <button class="variant-button" type="button" data-bg="stage53">Stage 5-3</button>
+        <button class="variant-button" type="button" data-bg="stage54">Stage 5-4</button>
+        <button class="variant-button" type="button" data-bg="stage55">Stage 5-5</button>
+      </div>
+
+      <section class="stage-wrap">
+        <div class="stage">
+          <img id="backgroundImage" class="background" src="assets/maps/stage-5/stage-5-1.png" alt="Stage 5-1 background" />
+          <div class="lane" aria-hidden="true"></div>
+          <img class="actor petiman" src="assets/sprites/player/petiman-idle.png" alt="PETIMAN" />
+          <img class="actor rooeeebee" src="assets/sprites/player/rooeeebee-idle.png" alt="ROOEEBEE" />
+          <img class="actor slow-puncher" src="assets/sprites/enemy/general/slow_puncher_idle.png" alt="slow puncher" />
+          <img class="actor knife-thrower" src="assets/sprites/enemy/general/knife_thrower_idle.png" alt="knife thrower" />
+        </div>
+        <div class="caption">
+          <span id="backgroundLabel">Stage 5-1: Suidobashi station west exit</span>
+          <span>Lane overlay: y=300〜452</span>
+        </div>
+      </section>
+    </main>
+    <script>
+      const backgrounds = {
+        stage51: {
+          src: "assets/maps/stage-5/stage-5-1.png",
+          alt: "Stage 5-1 background",
+          label: "Stage 5-1: Suidobashi station west exit",
+        },
+        stage52: {
+          src: "assets/maps/stage-5/stage-5-2.png",
+          alt: "Stage 5-2 background",
+          label: "Stage 5-2: Suidobashi canal bridge",
+        },
+        stage53: {
+          src: "assets/maps/stage-5/stage-5-3.png",
+          alt: "Stage 5-3 background",
+          label: "Stage 5-3: Elevated city avenue",
+        },
+        stage54: {
+          src: "assets/maps/stage-5/stage-5-4.png",
+          alt: "Stage 5-4 background",
+          label: "Stage 5-4: Korakuen passage entrance",
+        },
+        stage55: {
+          src: "assets/maps/stage-5/stage-5-5.png",
+          alt: "Stage 5-5 background",
+          label: "Stage 5-5: Korakuen Hall-style boss entrance",
+        },
+      };
+
+      const backgroundImage = document.querySelector("#backgroundImage");
+      const backgroundLabel = document.querySelector("#backgroundLabel");
+      const laneToggle = document.querySelector("#laneToggle");
+
+      document.querySelectorAll("[data-bg]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const background = backgrounds[button.dataset.bg];
+          backgroundImage.src = background.src;
+          backgroundImage.alt = background.alt;
+          backgroundLabel.textContent = background.label;
+          document.querySelectorAll("[data-bg]").forEach((otherButton) => {
+            otherButton.classList.toggle("is-selected", otherButton === button);
+          });
+        });
+      });
+
+      laneToggle.addEventListener("click", () => {
+        document.body.classList.toggle("show-lane");
+        laneToggle.classList.toggle("is-selected", document.body.classList.contains("show-lane"));
+      });
+    </script>
+  </body>
+</html>
