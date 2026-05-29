@@ -2,7 +2,7 @@
 
 > Temporary handoff note for continuing development.
 > Source of truth is the code and Git history. If this file conflicts with code, trust the code.
-> Last updated: 2026-05-25
+> Last updated: 2026-05-26
 
 ## New Chat Instruction
 
@@ -13,9 +13,9 @@ Copy and paste this into the next chat:
 
 まず現在のgit状態とローカルサーバー状態を確認してください。
 
-前回は、Stage 3-1〜3-5 の両国レスリング地区背景を作成し、本編へ差し替えました。cache buster は `v=99` です。
+前回は、Stage 3-1〜3-5 の両国レスリング地区背景を作成し、本編へ差し替え、`24f9b93 Add stage three backgrounds` として GitHub にプッシュ済みです。cache buster は `v=99` です。
 
-次はステージ制の確認または背景差し替えの続きを進めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
+次は Stage 4 以降の背景差し替え、またはステージ制の確認を進めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
 ```
 
 ## Project
@@ -23,11 +23,11 @@ Copy and paste this into the next chat:
 - Workspace: `/Users/takedakouji/Documents/Belt scroll action`
 - GitHub: `https://github.com/petimaru/Belt-scroll-action.git`
 - Branch: `main`
-- Latest pushed commit: `36b575e Add stage two backgrounds`
+- Latest pushed commit: `24f9b93 Add stage three backgrounds`
 - Current cache buster: `v=99`
-- iPhone test URL when server is running: `http://192.168.0.49:4174/?v=99`
-- Local server command: `python3 -m http.server 4174 --bind 0.0.0.0`
-- Current server status at handoff update: ports 4174 and 4175 had stale empty responses; verification server started on port 4176
+- iPhone test URL when server is running on the current working port: `http://192.168.0.49:4176/?v=99`
+- Local server command for the current working port: `python3 -m http.server 4176 --bind 0.0.0.0`
+- Current server status at handoff update: port 4176 is running and returns `200 OK`; port 4174 has a Python listener but returns an empty response, so prefer 4176.
 - Known untracked folders:
   - `.playwright-cli/`
   - `output/`
@@ -418,25 +418,13 @@ Current enemy visual sizes in `ENEMY_SPRITE_DEFS`:
 
 - Last checked status:
   - `main...origin/main`
-  - modified: `docs/handoff/current.md`, `index.html`, `main.js`, `stage-1-1-bg-preview.html`
-  - untracked: `assets/maps/stage-1-walkable/`, `stage-1-walkable-preview.html`
-  - untracked: old walk-animation experiment files plus known `.playwright-cli/`, `output/`, `tmp/`
+  - tracked code/assets are clean after `24f9b93 Add stage three backgrounds`
+  - untracked: known experimental/background raw files plus known `.playwright-cli/`, `output/`, `tmp/`
 - Last pushed commit:
-  - `7f480a6 Add stage one backgrounds and pixel exit prompt`
-- Server was running on port 4174 when this handoff was updated.
+  - `24f9b93 Add stage three backgrounds`
+- Server was running on port 4176 when this handoff was updated.
+- Port 4174 had a Python listener but returned an empty response, so use 4176 first.
 - Start server before iPhone testing:
-
-```sh
-python3 -m http.server 4174 --bind 0.0.0.0
-```
-
-Then open:
-
-```text
-http://192.168.0.49:4174/?v=99
-```
-
-If port 4174 returns an empty response, use another port, for example:
 
 ```sh
 python3 -m http.server 4176 --bind 0.0.0.0
@@ -448,16 +436,28 @@ Then open:
 http://192.168.0.49:4176/?v=99
 ```
 
+If port 4176 is busy or returns an empty response, use another free port, for example:
+
+```sh
+python3 -m http.server 4177 --bind 0.0.0.0
+```
+
+Then open:
+
+```text
+http://192.168.0.49:4177/?v=99
+```
+
 Sprite comparison page:
 
 ```text
-http://192.168.0.49:4174/sprite-height-compare.html
+http://192.168.0.49:4176/sprite-height-compare.html
 ```
 
 Boss aura comparison page:
 
 ```text
-http://192.168.0.49:4174/boss-aura-compare.html
+http://192.168.0.49:4176/boss-aura-compare.html
 ```
 
 ## Verification Commands
@@ -473,16 +473,16 @@ git status --short --branch
 If server is running:
 
 ```sh
-curl -I 'http://127.0.0.1:4174/?v=99'
-curl -I 'http://127.0.0.1:4174/sprite-height-compare.html'
-curl -I 'http://127.0.0.1:4174/boss-aura-compare.html'
-curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_charge_idle.png'
-curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_shock_idle.png'
-curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_jump_idle.png'
-curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_knife_idle.png'
-curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_summon_idle.png'
-curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/mid_boss/mid_boss_idle.svg'
-curl -I 'http://127.0.0.1:4174/assets/sprites/enemy/major_boss/major_boss_idle.png'
+curl -I 'http://127.0.0.1:4176/?v=99'
+curl -I 'http://127.0.0.1:4176/sprite-height-compare.html'
+curl -I 'http://127.0.0.1:4176/boss-aura-compare.html'
+curl -I 'http://127.0.0.1:4176/assets/sprites/enemy/mid_boss/mid_boss_charge_idle.png'
+curl -I 'http://127.0.0.1:4176/assets/sprites/enemy/mid_boss/mid_boss_shock_idle.png'
+curl -I 'http://127.0.0.1:4176/assets/sprites/enemy/mid_boss/mid_boss_jump_idle.png'
+curl -I 'http://127.0.0.1:4176/assets/sprites/enemy/mid_boss/mid_boss_knife_idle.png'
+curl -I 'http://127.0.0.1:4176/assets/sprites/enemy/mid_boss/mid_boss_summon_idle.png'
+curl -I 'http://127.0.0.1:4176/assets/sprites/enemy/mid_boss/mid_boss_idle.svg'
+curl -I 'http://127.0.0.1:4176/assets/sprites/enemy/major_boss/major_boss_idle.png'
 ```
 
 ## Attention Points
