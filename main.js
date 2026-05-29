@@ -528,6 +528,11 @@ const STAGE_BACKGROUND_SPRITES = loadSpriteImages({
   stage5Area3: "assets/maps/stage-5/stage-5-3.png",
   stage5Area4: "assets/maps/stage-5/stage-5-4.png",
   stage5Area5: "assets/maps/stage-5/stage-5-5.png",
+  stage6Area1: "assets/maps/stage-6/stage-6-1.png",
+  stage6Area2: "assets/maps/stage-6/stage-6-2.png",
+  stage6Area3: "assets/maps/stage-6/stage-6-3.png",
+  stage6Area4: "assets/maps/stage-6/stage-6-4.png",
+  stage6Area5: "assets/maps/stage-6/stage-6-5.png",
 });
 const UI_SPRITES = loadSpriteImages({
   exitGo: "assets/ui/exit-go/sheet-transparent.png",

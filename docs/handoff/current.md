@@ -13,9 +13,9 @@ Copy and paste this into the next chat:
 
 まず現在のgit状態とローカルサーバー状態を確認してください。
 
-前回は、Stage 5-1〜5-5 の東京・水道橋/後楽園ルート背景を作成し、本編へ差し替えました。cache buster は `v=101` です。まだコミット/プッシュ前なら、作業対象ファイルだけを確認してから stage してください。
+前回は、Stage 6-1〜6-5 の東京ドーム最終ルート背景を作成し、本編へ差し替えました。cache buster は `v=102` です。まだコミット/プッシュ前なら、作業対象ファイルだけを確認してから stage してください。
 
-次は Stage 5 のMac/iPhone確認、または Stage 6 背景差し替えを進めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
+次は Stage 6 のMac/iPhone確認、Stage 1〜6通し確認、または Major Boss defeat/game clear 確認を進めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
 ```
 
 ## Project
@@ -23,9 +23,9 @@ Copy and paste this into the next chat:
 - Workspace: `/Users/takedakouji/Documents/Belt scroll action`
 - GitHub: `https://github.com/petimaru/Belt-scroll-action.git`
 - Branch: `main`
-- Latest pushed commit: `c73e7ed Add stage four backgrounds`
-- Current cache buster: `v=101`
-- iPhone test URL when server is running on the current working port: `http://192.168.0.49:4177/?v=101`
+- Latest pushed commit: `12cfe9c Add stage five backgrounds`
+- Current cache buster: `v=102`
+- iPhone test URL when server is running on the current working port: `http://192.168.0.49:4177/?v=102`
 - Local server command for the current working port: `python3 -m http.server 4177 --bind 0.0.0.0`
 - Current server status at handoff update: port 4177 is running and returns `200 OK`; ports 4174 and 4176 had Python listeners but returned an empty response, so prefer 4177.
 - Known untracked folders:
@@ -118,7 +118,16 @@ Copy and paste this into the next chat:
   - QA report: `docs/handoff/stage-5-backgrounds.md`
   - Preview page: `stage-5-background-preview.html`
   - Accepted images use night, wet pavement, saturated lighting, and 32-bit arcade mood to match Stage 1〜4.
-  - Stage 6 still uses the old Canvas gradient backgrounds.
+- Stage 6 background images are wired into `main.js`:
+  - Area 1: `assets/maps/stage-6/stage-6-1.png`
+  - Area 2: `assets/maps/stage-6/stage-6-2.png`
+  - Area 3: `assets/maps/stage-6/stage-6-3.png`
+  - Area 4: `assets/maps/stage-6/stage-6-4.png`
+  - Area 5 boss area: `assets/maps/stage-6/stage-6-5.png`
+  - Theme: Tokyo Dome final route, progressing from dome city frontage to final dome boss plaza.
+  - QA report: `docs/handoff/stage-6-backgrounds.md`
+  - Preview page: `stage-6-background-preview.html`
+  - Accepted images use night, wet pavement, saturated lighting, and 32-bit arcade mood to match Stage 1〜5.
 - Continue screen exists with countdown.
 - Jump avoids normal attacks, knives, bullets, bike rushes, and boss radial attacks.
 
@@ -453,7 +462,7 @@ python3 -m http.server 4177 --bind 0.0.0.0
 Then open:
 
 ```text
-http://192.168.0.49:4177/?v=101
+http://192.168.0.49:4177/?v=102
 ```
 
 If port 4177 is busy or returns an empty response, use another free port, for example:
@@ -465,7 +474,7 @@ python3 -m http.server 4178 --bind 0.0.0.0
 Then open:
 
 ```text
-http://192.168.0.49:4178/?v=101
+http://192.168.0.49:4178/?v=102
 ```
 
 Sprite comparison page:
@@ -493,10 +502,10 @@ git status --short --branch
 If server is running:
 
 ```sh
-curl -I 'http://127.0.0.1:4177/?v=101'
-curl -I 'http://127.0.0.1:4177/stage-5-background-preview.html'
-curl -I 'http://127.0.0.1:4177/assets/maps/stage-5/stage-5-1.png'
-curl -I 'http://127.0.0.1:4177/assets/maps/stage-5/stage-5-5.png'
+curl -I 'http://127.0.0.1:4177/?v=102'
+curl -I 'http://127.0.0.1:4177/stage-6-background-preview.html'
+curl -I 'http://127.0.0.1:4177/assets/maps/stage-6/stage-6-1.png'
+curl -I 'http://127.0.0.1:4177/assets/maps/stage-6/stage-6-5.png'
 curl -I 'http://127.0.0.1:4177/sprite-height-compare.html'
 curl -I 'http://127.0.0.1:4177/boss-aura-compare.html'
 ```
