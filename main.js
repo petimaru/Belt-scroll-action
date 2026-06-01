@@ -537,6 +537,13 @@ const STAGE_BACKGROUND_SPRITES = loadSpriteImages({
 const UI_SPRITES = loadSpriteImages({
   exitGo: "assets/ui/exit-go/sheet-transparent.png",
 });
+const BREAKABLE_SPRITES = loadSpriteImages({
+  crate: "assets/sprites/breakables/crate.png",
+  crateBroken: "assets/sprites/breakables/crate-broken.png",
+  barrel: "assets/sprites/breakables/barrel.png",
+  barrelBroken: "assets/sprites/breakables/barrel-broken.png",
+});
+const BREAKABLE_BROKEN_DISPLAY_TIME = 0.65;
 
 const ITEM_TYPES = {
   onigiri: { icon: "🍙", heal: 10, label: "+10 HP" },
@@ -588,6 +595,10 @@ const BREAKABLE_TYPES = {
     radius: 25,
     width: 50,
     height: 44,
+    spriteWidth: 62,
+    spriteHeight: 60,
+    brokenSpriteWidth: 66,
+    brokenSpriteHeight: 50,
     drops: [
       { type: "heart", chance: 0.08 },
       { type: "knife", chance: 0.2 },
@@ -601,6 +612,10 @@ const BREAKABLE_TYPES = {
     radius: 27,
     width: 46,
     height: 62,
+    spriteWidth: 54,
+    spriteHeight: 78,
+    brokenSpriteWidth: 66,
+    brokenSpriteHeight: 56,
     drops: [
       { type: "heart", chance: 0.12 },
       { type: "knife", chance: 0.24 },
@@ -1090,10 +1105,16 @@ function createBreakable(type, x, y) {
     radius: breakableDef.radius,
     width: breakableDef.width,
     height: breakableDef.height,
+    spriteWidth: breakableDef.spriteWidth,
+    spriteHeight: breakableDef.spriteHeight,
+    brokenSpriteWidth: breakableDef.brokenSpriteWidth,
+    brokenSpriteHeight: breakableDef.brokenSpriteHeight,
     hp: breakableDef.hp,
     maxHp: breakableDef.hp,
     hitFlash: 0,
     wobbleTimer: 0,
+    brokenTimer: 0,
+    brokenHandled: false,
     active: true,
   };
 }
@@ -2521,6 +2542,7 @@ function updateBreakables(dt) {
   state.breakables.forEach((breakable) => {
     breakable.hitFlash = Math.max(0, breakable.hitFlash - dt);
     breakable.wobbleTimer = Math.max(0, breakable.wobbleTimer - dt);
+    breakable.brokenTimer = Math.max(0, breakable.brokenTimer - dt);
   });
 }
 
@@ -2775,15 +2797,18 @@ function updateAttacks(dt) {
   }
   state.enemies = state.enemies.filter((enemy) => enemy.hp > 0 || (enemy.koTimer ?? 0) > 0);
 
-  const brokenBreakables = state.breakables.filter((breakable) => breakable.hp <= 0);
+  const brokenBreakables = state.breakables.filter((breakable) => breakable.hp <= 0 && !breakable.brokenHandled);
   if (brokenBreakables.length > 0) {
     state.score += brokenBreakables.length * 80;
     brokenBreakables.forEach((breakable) => {
+      breakable.active = false;
+      breakable.brokenHandled = true;
+      breakable.brokenTimer = BREAKABLE_BROKEN_DISPLAY_TIME;
       addFloatingText(breakable.x, breakable.y - breakable.height / 2 - 38, "BREAK!", "#ffc857");
       dropItemFromBreakable(breakable);
     });
-    state.breakables = state.breakables.filter((breakable) => breakable.hp > 0);
   }
+  state.breakables = state.breakables.filter((breakable) => breakable.hp > 0 || breakable.brokenTimer > 0);
 
   state.enemies = state.enemies.filter((enemy) => {
     if (enemy.type !== "bike_rusher") return true;
@@ -4128,6 +4153,7 @@ function drawBreakables(scaleX, scaleY) {
 function drawCrate(crate, scaleX, scaleY) {
   drawShadow(crate, scaleX, scaleY);
   const wobble = crate.wobbleTimer > 0 ? Math.sin(crate.wobbleTimer * 70) * 2.5 : 0;
+  if (drawBreakableSprite(crate, scaleX, scaleY, wobble)) return;
 
   ctx.save();
   ctx.translate(crate.x * scaleX, crate.y * scaleY);
@@ -4151,13 +4177,14 @@ function drawCrate(crate, scaleX, scaleY) {
   ctx.lineTo(-crate.width / 2 + 7, crate.height / 2 - 7);
   ctx.stroke();
 
-  drawBreakableHpBar(crate);
+  if (crate.hp > 0) drawBreakableHpBar(crate);
   ctx.restore();
 }
 
 function drawBarrel(barrel, scaleX, scaleY) {
   drawShadow(barrel, scaleX, scaleY);
   const wobble = barrel.wobbleTimer > 0 ? Math.sin(barrel.wobbleTimer * 70) * 2 : 0;
+  if (drawBreakableSprite(barrel, scaleX, scaleY, wobble)) return;
 
   ctx.save();
   ctx.translate(barrel.x * scaleX, barrel.y * scaleY);
@@ -4184,8 +4211,36 @@ function drawBarrel(barrel, scaleX, scaleY) {
   ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
   ctx.fillRect(-barrel.width / 2 + 8, -barrel.height / 2 + 8, 7, barrel.height - 16);
 
-  drawBreakableHpBar(barrel);
+  if (barrel.hp > 0) drawBreakableHpBar(barrel);
   ctx.restore();
+}
+
+function drawBreakableSprite(breakable, scaleX, scaleY, wobble) {
+  const broken = breakable.hp <= 0;
+  const spriteKey = `${breakable.type}${broken ? "Broken" : ""}`;
+  const sprite = BREAKABLE_SPRITES[spriteKey];
+  if (!sprite?.loaded || sprite.failed) return false;
+
+  const drawWidth = broken ? breakable.brokenSpriteWidth : breakable.spriteWidth;
+  const drawHeight = broken ? breakable.brokenSpriteHeight : breakable.spriteHeight;
+  const footY = breakable.height / 2;
+
+  ctx.save();
+  ctx.translate(breakable.x * scaleX, breakable.y * scaleY);
+  ctx.rotate((wobble * Math.PI) / 180);
+  ctx.scale(scaleX, scaleY);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(sprite.image, -drawWidth / 2, footY - drawHeight, drawWidth, drawHeight);
+
+  if (breakable.hitFlash > 0 && !broken) {
+    ctx.globalCompositeOperation = "source-atop";
+    ctx.globalAlpha = 0.42;
+    ctx.fillStyle = "#fff1be";
+    ctx.fillRect(-drawWidth / 2, footY - drawHeight, drawWidth, drawHeight);
+  }
+
+  ctx.restore();
+  return true;
 }
 
 function drawBreakableHpBar(breakable) {

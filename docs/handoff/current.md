@@ -13,9 +13,9 @@ Copy and paste this into the next chat:
 
 まず現在のgit状態とローカルサーバー状態を確認してください。
 
-前回は、Stage 6-1〜6-5 の東京ドーム最終ルート背景を作成し、本編へ差し替え、`43566db Add stage six backgrounds` として GitHub にプッシュ済みです。cache buster は `v=102` です。
+前回は、木箱・ドラム缶を32-bitドット調画像に差し替え、HP 0後に破壊済み画像を短時間表示する変更を入れました。cache buster は `v=103` です。
 
-次は Stage 6 のMac/iPhone確認、Stage 1〜6通し確認、または Major Boss defeat/game clear 確認を進めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
+次は `breakable-sprite-preview.html` と本編で木箱・ドラム缶の通常→破壊表示を確認し、問題なければStage 6のMac/iPhone確認、Stage 1〜6通し確認、またはMajor Boss defeat/game clear確認に進みたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
 ```
 
 ## Project
@@ -24,10 +24,10 @@ Copy and paste this into the next chat:
 - GitHub: `https://github.com/petimaru/Belt-scroll-action.git`
 - Branch: `main`
 - Latest pushed commit: `43566db Add stage six backgrounds`
-- Current cache buster: `v=102`
-- iPhone test URL when server is running on the current working port: `http://192.168.0.49:4177/?v=102`
-- Local server command for the current working port: `python3 -m http.server 4177 --bind 0.0.0.0`
-- Current server status at handoff update: port 4177 is running and returns `200 OK`; ports 4174 and 4176 had Python listeners but returned an empty response, so prefer 4177.
+- Current cache buster: `v=103`
+- iPhone test URL when server is running on the current working port: `http://192.168.0.49:4178/?v=103`
+- Local server command for the current working port: `python3 -m http.server 4178 --bind 0.0.0.0`
+- Current server status at handoff update: port 4178 is running and returns `200 OK`; port 4177 had a Python listener but returned an empty response, so prefer 4178.
 - Known untracked folders:
   - `.playwright-cli/`
   - `output/`
@@ -128,6 +128,15 @@ Copy and paste this into the next chat:
   - QA report: `docs/handoff/stage-6-backgrounds.md`
   - Preview page: `stage-6-background-preview.html`
   - Accepted images use night, wet pavement, saturated lighting, and 32-bit arcade mood to match Stage 1〜5.
+- Breakable sprites are wired into `main.js`:
+  - Runtime assets:
+    - `assets/sprites/breakables/crate.png`
+    - `assets/sprites/breakables/crate-broken.png`
+    - `assets/sprites/breakables/barrel.png`
+    - `assets/sprites/breakables/barrel-broken.png`
+  - Preview page: `breakable-sprite-preview.html`
+  - HP, collision, drop rates, and spawn positions were not changed.
+  - HP 0 now shows the broken sprite briefly before the object disappears.
 - Continue screen exists with countdown.
 - Jump avoids normal attacks, knives, bullets, bike rushes, and boss radial attacks.
 
@@ -451,18 +460,18 @@ Current enemy visual sizes in `ENEMY_SPRITE_DEFS`:
   - untracked: known experimental/background raw files plus known `.playwright-cli/`, `output/`, `tmp/`
 - Last pushed commit:
   - `43566db Add stage six backgrounds`
-- Server was running on port 4177 when this handoff was updated.
-- Ports 4174 and 4176 had Python listeners but returned an empty response, so use 4177 first.
+- Server was running on port 4178 when this handoff was updated.
+- Port 4177 had a Python listener but returned an empty response, so use 4178 first.
 - Start server before iPhone testing:
 
 ```sh
-python3 -m http.server 4177 --bind 0.0.0.0
+python3 -m http.server 4178 --bind 0.0.0.0
 ```
 
 Then open:
 
 ```text
-http://192.168.0.49:4177/?v=102
+http://192.168.0.49:4178/?v=103
 ```
 
 If port 4177 is busy or returns an empty response, use another free port, for example:
@@ -474,7 +483,7 @@ python3 -m http.server 4178 --bind 0.0.0.0
 Then open:
 
 ```text
-http://192.168.0.49:4178/?v=102
+http://192.168.0.49:4178/?v=103
 ```
 
 Sprite comparison page:
@@ -502,8 +511,11 @@ git status --short --branch
 If server is running:
 
 ```sh
-curl -I 'http://127.0.0.1:4177/?v=102'
+curl -I 'http://127.0.0.1:4178/?v=103'
 curl -I 'http://127.0.0.1:4177/stage-6-background-preview.html'
+curl -I 'http://127.0.0.1:4178/breakable-sprite-preview.html'
+curl -I 'http://127.0.0.1:4178/assets/sprites/breakables/crate.png'
+curl -I 'http://127.0.0.1:4178/assets/sprites/breakables/barrel-broken.png'
 curl -I 'http://127.0.0.1:4177/assets/maps/stage-6/stage-6-1.png'
 curl -I 'http://127.0.0.1:4177/assets/maps/stage-6/stage-6-5.png'
 curl -I 'http://127.0.0.1:4177/sprite-height-compare.html'

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Breakable Sprite Preview</title>
+    <style>
+      body {
+        margin: 0;
+        background: #101015;
+        color: #f4ead6;
+        font-family: system-ui, sans-serif;
+      }
+
+      main {
+        width: min(960px, 100vw);
+        margin: 0 auto;
+      }
+
+      .stage {
+        position: relative;
+        aspect-ratio: 16 / 9;
+        overflow: hidden;
+        background-image: url("assets/maps/stage-6/stage-6-1.png");
+        background-size: cover;
+        image-rendering: pixelated;
+      }
+
+      .lane {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 55.55%;
+        height: 28.15%;
+        border-block: 1px solid rgba(255, 216, 123, 0.45);
+        background: rgba(255, 216, 123, 0.08);
+      }
+
+      .prop {
+        position: absolute;
+        transform: translate(-50%, -100%);
+        image-rendering: pixelated;
+      }
+
+      .crate {
+        width: 62px;
+      }
+
+      .crate-broken {
+        width: 66px;
+      }
+
+      .barrel {
+        width: 54px;
+      }
+
+      .barrel-broken {
+        width: 66px;
+      }
+
+      .caption {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        padding: 12px 0 0;
+        font-size: 14px;
+        color: #d8cab0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="stage" aria-label="Breakable sprite preview">
+        <div class="lane"></div>
+        <img class="prop crate" src="assets/sprites/breakables/crate.png" alt="crate" style="left: 28%; top: 78%" />
+        <img
+          class="prop crate-broken"
+          src="assets/sprites/breakables/crate-broken.png"
+          alt="broken crate"
+          style="left: 43%; top: 78%"
+        />
+        <img class="prop barrel" src="assets/sprites/breakables/barrel.png" alt="barrel" style="left: 58%; top: 78%" />
+        <img
+          class="prop barrel-broken"
+          src="assets/sprites/breakables/barrel-broken.png"
+          alt="broken barrel"
+          style="left: 73%; top: 78%"
+        />
+      </section>
+      <div class="caption">
+        <span>木箱: 通常 / 破壊</span>
+        <span>ドラム缶: 通常 / 破壊</span>
+        <span>歩行レーン y=300..452</span>
+      </div>
+    </main>
+  </body>
+</html>
