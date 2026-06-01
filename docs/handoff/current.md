@@ -2,7 +2,7 @@
 
 > Temporary handoff note for continuing development.
 > Source of truth is the code and Git history. If this file conflicts with code, trust the code.
-> Last updated: 2026-05-29
+> Last updated: 2026-06-02
 
 ## New Chat Instruction
 
@@ -13,7 +13,7 @@ Copy and paste this into the next chat:
 
 まず現在のgit状態とローカルサーバー状態を確認してください。
 
-前回は、Stage 6-1〜6-5 の東京ドーム最終ルート背景を作成し、本編へ差し替えました。cache buster は `v=102` です。まだコミット/プッシュ前なら、作業対象ファイルだけを確認してから stage してください。
+前回は、Stage 6-1〜6-5 の東京ドーム最終ルート背景を作成し、本編へ差し替え、`43566db Add stage six backgrounds` として GitHub にプッシュ済みです。cache buster は `v=102` です。
 
 次は Stage 6 のMac/iPhone確認、Stage 1〜6通し確認、または Major Boss defeat/game clear 確認を進めたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
 ```
@@ -23,7 +23,7 @@ Copy and paste this into the next chat:
 - Workspace: `/Users/takedakouji/Documents/Belt scroll action`
 - GitHub: `https://github.com/petimaru/Belt-scroll-action.git`
 - Branch: `main`
-- Latest pushed commit: `12cfe9c Add stage five backgrounds`
+- Latest pushed commit: `43566db Add stage six backgrounds`
 - Current cache buster: `v=102`
 - iPhone test URL when server is running on the current working port: `http://192.168.0.49:4177/?v=102`
 - Local server command for the current working port: `python3 -m http.server 4177 --bind 0.0.0.0`
@@ -447,10 +447,10 @@ Current enemy visual sizes in `ENEMY_SPRITE_DEFS`:
 
 - Last checked status:
   - `main...origin/main`
-  - Stage 5 background files are currently part of the active working-tree change unless already committed
+  - tracked code/assets are clean after `43566db Add stage six backgrounds`
   - untracked: known experimental/background raw files plus known `.playwright-cli/`, `output/`, `tmp/`
 - Last pushed commit:
-  - `c73e7ed Add stage four backgrounds`
+  - `43566db Add stage six backgrounds`
 - Server was running on port 4177 when this handoff was updated.
 - Ports 4174 and 4176 had Python listeners but returned an empty response, so use 4177 first.
 - Start server before iPhone testing:
@@ -528,10 +528,9 @@ curl -I 'http://127.0.0.1:4177/boss-aura-compare.html'
   1. Play-test Stage Select on Mac and iPhone.
   2. Confirm the shared walkable lane feels good on iPhone and Mac.
   3. Confirm the new 32-bit-style `GO→` exit display feels good on iPhone and Mac.
-  4. Confirm Stage 1, Stage 2, Stage 3, Stage 4, and Stage 5 backgrounds on Mac and iPhone.
+  4. Confirm Stage 1, Stage 2, Stage 3, Stage 4, Stage 5, and Stage 6 backgrounds on Mac and iPhone.
   5. Confirm Stage 1〜5 clear flow and Stage 6 unlock.
   6. Confirm Major Boss defeat shows game clear.
-  7. Background image replacement for Stage 6 using the shared walkable-lane rule.
-  8. Attack/projectile effects.
-  9. Items/breakables.
+  7. Attack/projectile effects.
+  8. Items/breakables.
 - Consider LocalStorage later for selected character and difficulty.
