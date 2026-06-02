@@ -295,9 +295,11 @@ body {
   display: grid;
   place-items: center;
   padding: 22px;
+  overflow-y: auto;
   background: linear-gradient(180deg, rgba(5, 8, 7, 0.72), rgba(5, 8, 7, 0.88));
   color: var(--text);
   text-align: center;
+  -webkit-overflow-scrolling: touch;
 }
 
 .title-overlay[hidden] {
@@ -330,6 +332,10 @@ body {
   color: var(--gold);
   font-size: 14px;
   font-weight: 900;
+}
+
+.title-notice:empty {
+  display: none;
 }
 
 .character-actions {
@@ -608,5 +614,80 @@ body {
     min-height: 40px;
     padding: 7px 5px;
     font-size: 12px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 430px) {
+  .title-overlay {
+    align-items: start;
+    padding: 8px 12px;
+  }
+
+  .title-panel {
+    width: min(94vw, 620px);
+  }
+
+  .title-kicker {
+    margin-bottom: 4px;
+    font-size: 10px;
+  }
+
+  .title-panel h1 {
+    margin-bottom: 8px;
+    font-size: clamp(34px, 7vw, 54px);
+  }
+
+  .character-actions {
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .character-button {
+    grid-template-columns: 40px minmax(0, 1fr);
+    min-height: 52px;
+    gap: 8px;
+    padding: 6px 8px;
+  }
+
+  .character-button img {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .character-button span {
+    font-size: clamp(15px, 2.4vw, 19px);
+  }
+
+  .character-button small {
+    margin-top: 1px;
+    font-size: 10px;
+  }
+
+  .difficulty-actions {
+    gap: 8px;
+  }
+
+  .difficulty-button {
+    min-height: 50px;
+    padding: 6px 8px;
+  }
+
+  .difficulty-button span {
+    font-size: clamp(16px, 2.7vw, 21px);
+  }
+
+  .difficulty-button small {
+    margin-top: 1px;
+    font-size: 10px;
+  }
+
+  .title-nav-actions {
+    margin-top: 8px;
+  }
+
+  .start-button {
+    min-height: 38px;
+    padding: 6px 10px;
   }
 }

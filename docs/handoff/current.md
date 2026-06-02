@@ -13,9 +13,9 @@ Copy and paste this into the next chat:
 
 まず現在のgit状態とローカルサーバー状態を確認してください。
 
-前回は、木箱・ドラム缶を32-bitドット調画像に差し替え、HP 0後に破壊済み画像を短時間表示する変更を入れました。cache buster は `v=103` です。
+前回は、iPhone横画面でタイトルの「ステージ選択へ」ボタンが押せない問題に対して、低い横画面用のタイトルUI圧縮レイアウトを追加しました。cache buster は `v=104` です。
 
-次は `breakable-sprite-preview.html` と本編で木箱・ドラム缶の通常→破壊表示を確認し、問題なければStage 6のMac/iPhone確認、Stage 1〜6通し確認、またはMajor Boss defeat/game clear確認に進みたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
+次はiPhone横画面でタイトル画面の「ステージ選択へ」ボタンが押せるか確認し、問題なければ `breakable-sprite-preview.html` と本編で木箱・ドラム缶の通常→破壊表示、Stage 6のMac/iPhone確認、Stage 1〜6通し確認、またはMajor Boss defeat/game clear確認に進みたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
 ```
 
 ## Project
@@ -24,8 +24,8 @@ Copy and paste this into the next chat:
 - GitHub: `https://github.com/petimaru/Belt-scroll-action.git`
 - Branch: `main`
 - Latest pushed commit: `43566db Add stage six backgrounds`
-- Current cache buster: `v=103`
-- iPhone test URL when server is running on the current working port: `http://192.168.0.49:4178/?v=103`
+- Current cache buster: `v=104`
+- iPhone test URL when server is running on the current working port: `http://192.168.0.49:4178/?v=104`
 - Local server command for the current working port: `python3 -m http.server 4178 --bind 0.0.0.0`
 - Current server status at handoff update: port 4178 is running and returns `200 OK`; port 4177 had a Python listener but returned an empty response, so prefer 4178.
 - Known untracked folders:
@@ -471,7 +471,7 @@ python3 -m http.server 4178 --bind 0.0.0.0
 Then open:
 
 ```text
-http://192.168.0.49:4178/?v=103
+http://192.168.0.49:4178/?v=104
 ```
 
 If port 4177 is busy or returns an empty response, use another free port, for example:
@@ -483,7 +483,7 @@ python3 -m http.server 4178 --bind 0.0.0.0
 Then open:
 
 ```text
-http://192.168.0.49:4178/?v=103
+http://192.168.0.49:4178/?v=104
 ```
 
 Sprite comparison page:
@@ -511,7 +511,7 @@ git status --short --branch
 If server is running:
 
 ```sh
-curl -I 'http://127.0.0.1:4178/?v=103'
+curl -I 'http://127.0.0.1:4178/?v=104'
 curl -I 'http://127.0.0.1:4177/stage-6-background-preview.html'
 curl -I 'http://127.0.0.1:4178/breakable-sprite-preview.html'
 curl -I 'http://127.0.0.1:4178/assets/sprites/breakables/crate.png'
