@@ -13,9 +13,9 @@ Copy and paste this into the next chat:
 
 まず現在のgit状態とローカルサーバー状態を確認してください。
 
-前回は、iPhone横画面でタイトルの「ステージ選択へ」ボタンが押せない問題に対して、低い横画面用のタイトルUI圧縮レイアウトを追加しました。cache buster は `v=104` です。
+前回は、大ボスshock中の横高速回転演出を本編へ反映しました。cache buster は `v=107` です。
 
-次はiPhone横画面でタイトル画面の「ステージ選択へ」ボタンが押せるか確認し、問題なければ `breakable-sprite-preview.html` と本編で木箱・ドラム缶の通常→破壊表示、Stage 6のMac/iPhone確認、Stage 1〜6通し確認、またはMajor Boss defeat/game clear確認に進みたいです。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
+次は大ボスshock中の横高速回転演出が、画像サイズを変えずに自然に見えるか確認したいです。あわせてiPhone横画面でタイトル画面の「ステージ選択へ」ボタンが押せるか、BGM/SE、通常攻撃3発目、ステージごと/ボス中のBGM差も確認してください。まず現状コードとこのhandoffを読んで、変更前に前提・変更予定ファイル・変更しない範囲・確認方法を短く説明してください。
 ```
 
 ## Project
@@ -23,9 +23,9 @@ Copy and paste this into the next chat:
 - Workspace: `/Users/takedakouji/Documents/Belt scroll action`
 - GitHub: `https://github.com/petimaru/Belt-scroll-action.git`
 - Branch: `main`
-- Latest pushed commit: `43566db Add stage six backgrounds`
-- Current cache buster: `v=104`
-- iPhone test URL when server is running on the current working port: `http://192.168.0.49:4178/?v=104`
+- Latest pushed commit: `337cf79 Fix iPhone title layout`
+- Current cache buster: `v=107`
+- iPhone test URL when server is running on the current working port: `http://192.168.0.49:4178/?v=107`
 - Local server command for the current working port: `python3 -m http.server 4178 --bind 0.0.0.0`
 - Current server status at handoff update: port 4178 is running and returns `200 OK`; port 4177 had a Python listener but returned an empty response, so prefer 4178.
 - Known untracked folders:
@@ -137,6 +137,15 @@ Copy and paste this into the next chat:
   - Preview page: `breakable-sprite-preview.html`
   - HP, collision, drop rates, and spawn positions were not changed.
   - HP 0 now shows the broken sprite briefly before the object disappears.
+- Audio is wired into `main.js`:
+  - Uses Web Audio only; no external audio files were added.
+  - BGM starts after a user action starts gameplay, matching iPhone audio restrictions.
+  - BGM stops on stage clear / game clear / tab hide.
+  - `STAGE_BGM_PROFILES` defines separate bass/lead patterns and tempo per stage.
+  - Boss areas speed up the BGM and add thicker bass/noise/lead accents while a boss is alive.
+  - SE events include UI select, stage start, area change, attack, hit, guard, back hit, jump, knife, special, super, breakable destruction, item pickup, hurt, boss intro, and clear.
+  - Normal attack combo step 3 uses `attackHeavy`, a heavier low-pitched punch sound.
+  - Audio changes do not alter HP, collision, enemy AI, attack timing, score, drops, or stage flow.
 - Continue screen exists with countdown.
 - Jump avoids normal attacks, knives, bullets, bike rushes, and boss radial attacks.
 
@@ -218,7 +227,7 @@ Copy and paste this into the next chat:
     - ko: HP 0 image
     - no Charge sprite is used for this boss
     - close-range attack image is shown only during active damage timing, not during windup
-  - Major Boss now uses PNG image assets:
+- Major Boss now uses PNG image assets:
     - idle and move share `major_boss_idle.png` / `major_boss_move.png`
     - charge: CHARGE windup
     - chargeAttack: CHARGE rushing active
@@ -231,6 +240,15 @@ Copy and paste this into the next chat:
     - damage: shown only when not guarding
     - ko: HP 0 image
   - Major Boss can now use summon in addition to the current mid-boss techniques.
+  - Major Boss shock now uses a runtime 4-frame horizontal spin transform:
+    - `frameMs: 24`
+    - `spin: 1`
+    - `slide: 0`
+    - `squash: 0`
+    - no afterimage in the actual game
+    - sprite height remains `major_boss_brawler.spriteHeights.shock: 205`; the transform must not resize the image.
+  - Tuning page: `major-boss-shock-spin-compare.html`
+  - Tuning preview asset: `assets/sprites/enemy/major_boss/major_boss_shock_preview.png`
   - Boss HUD and attack/guard labels stay separate from flipped sprite drawing.
   - Collision, HP, speed, AI, attack ranges, and boss behavior were not changed.
 
@@ -451,6 +469,11 @@ Current enemy visual sizes in `ENEMY_SPRITE_DEFS`:
   - `summonBossEnemies()`
   - `canBossStartSummon()`
   - `updateBossSummonCooldown()`
+  - `ensureAudio()`
+  - `startBgm()`
+  - `stopBgm()`
+  - `playSfx()`
+  - `getEnemyWindmillTransform()`
 
 ## Current Git And Server Notes
 
@@ -459,7 +482,7 @@ Current enemy visual sizes in `ENEMY_SPRITE_DEFS`:
   - tracked code/assets are clean after `43566db Add stage six backgrounds`
   - untracked: known experimental/background raw files plus known `.playwright-cli/`, `output/`, `tmp/`
 - Last pushed commit:
-  - `43566db Add stage six backgrounds`
+  - `337cf79 Fix iPhone title layout`
 - Server was running on port 4178 when this handoff was updated.
 - Port 4177 had a Python listener but returned an empty response, so use 4178 first.
 - Start server before iPhone testing:
@@ -471,7 +494,7 @@ python3 -m http.server 4178 --bind 0.0.0.0
 Then open:
 
 ```text
-http://192.168.0.49:4178/?v=104
+http://192.168.0.49:4178/?v=107
 ```
 
 If port 4177 is busy or returns an empty response, use another free port, for example:
@@ -483,7 +506,7 @@ python3 -m http.server 4178 --bind 0.0.0.0
 Then open:
 
 ```text
-http://192.168.0.49:4178/?v=104
+http://192.168.0.49:4178/?v=107
 ```
 
 Sprite comparison page:
@@ -511,7 +534,9 @@ git status --short --branch
 If server is running:
 
 ```sh
-curl -I 'http://127.0.0.1:4178/?v=104'
+curl -I 'http://127.0.0.1:4178/?v=107'
+curl -I 'http://127.0.0.1:4178/major-boss-shock-spin-compare.html'
+curl -I 'http://127.0.0.1:4178/assets/sprites/enemy/major_boss/major_boss_shock_preview.png'
 curl -I 'http://127.0.0.1:4177/stage-6-background-preview.html'
 curl -I 'http://127.0.0.1:4178/breakable-sprite-preview.html'
 curl -I 'http://127.0.0.1:4178/assets/sprites/breakables/crate.png'
@@ -538,11 +563,15 @@ curl -I 'http://127.0.0.1:4177/boss-aura-compare.html'
 
 - Continue in this order unless the user chooses otherwise:
   1. Play-test Stage Select on Mac and iPhone.
-  2. Confirm the shared walkable lane feels good on iPhone and Mac.
-  3. Confirm the new 32-bit-style `GO→` exit display feels good on iPhone and Mac.
-  4. Confirm Stage 1, Stage 2, Stage 3, Stage 4, Stage 5, and Stage 6 backgrounds on Mac and iPhone.
-  5. Confirm Stage 1〜5 clear flow and Stage 6 unlock.
-  6. Confirm Major Boss defeat shows game clear.
-  7. Attack/projectile effects.
-  8. Items/breakables.
+  2. Confirm Major Boss shock horizontal spin keeps the same visual size.
+  3. Confirm BGM/SE starts after stage start on Mac and iPhone.
+  4. Confirm normal attack combo step 3 sounds heavier than steps 1 and 2.
+  5. Confirm stage BGM differs between stages and becomes faster/heavier during boss fights.
+  6. Confirm the shared walkable lane feels good on iPhone and Mac.
+  7. Confirm the new 32-bit-style `GO→` exit display feels good on iPhone and Mac.
+  8. Confirm Stage 1, Stage 2, Stage 3, Stage 4, Stage 5, and Stage 6 backgrounds on Mac and iPhone.
+  9. Confirm Stage 1〜5 clear flow and Stage 6 unlock.
+  10. Confirm Major Boss defeat shows game clear.
+  11. Attack/projectile effects.
+  12. Items/breakables.
 - Consider LocalStorage later for selected character and difficulty.

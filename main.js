@@ -394,6 +394,12 @@ const MID_BOSS_SHOCK_WINDMILL = {
   slide: 7,
   squash: 0.005,
 };
+const MAJOR_BOSS_SHOCK_SPIN = {
+  frameMs: 24,
+  spin: 1,
+  slide: 0,
+  squash: 0,
+};
 
 const BIKE_ENEMY = {
   warningTime: 1.45,
@@ -1148,19 +1154,26 @@ function resetRun(keepScore = false, startArea = 1) {
 }
 
 function selectDifficulty(difficultyKey = currentDifficultyKey) {
+  unlockAudio();
   if (DIFFICULTY_SETTINGS[difficultyKey]) currentDifficultyKey = difficultyKey;
+  playSfx("ui");
   updateTitleOverlay();
 }
 
 function selectPlayerCharacter(characterKey = currentPlayerCharacterKey) {
+  unlockAudio();
   if (PLAYER_CHARACTERS[characterKey]) currentPlayerCharacterKey = characterKey;
+  playSfx("ui");
   updateTitleOverlay();
   updatePlayerIdentityHud();
 }
 
 function startGame(startArea = 1) {
+  unlockAudio();
   clearAllInput();
   resetRun(false, startArea);
+  playSfx("start");
+  startBgm();
 }
 
 function startStage(stageNumber = 1) {
@@ -1176,12 +1189,16 @@ function startStage(stageNumber = 1) {
 }
 
 function showStageSelect() {
+  unlockAudio();
+  playSfx("ui");
   titleStep = "stage";
   titleNoticeText = "";
   updateTitleOverlay();
 }
 
 function showTitleSetup() {
+  unlockAudio();
+  playSfx("ui");
   titleStep = "setup";
   titleNoticeText = "";
   updateTitleOverlay();
@@ -1276,6 +1293,7 @@ function spawnWave(preserveEventEnemies = false) {
     state.majorBossIntroTimer = 1.25;
     state.screenShakeTimer = 0.58;
     showMessage("Major Boss!", 1100);
+    playSfx("boss");
     return;
   }
 
@@ -1284,6 +1302,7 @@ function spawnWave(preserveEventEnemies = false) {
     state.breakables = createBreakablesForWave(state.wave);
     state.bikeSpawnTimer = null;
     state.bikeSpawnsRemaining = 0;
+    playSfx("boss");
     return;
   }
 
@@ -1376,6 +1395,7 @@ function canUsePlayerAction() {
 
 function showPlayerDefeatMessage() {
   showMessage(state.lives <= 1 ? "Retry!" : "Down!", 800);
+  playSfx("hurt");
 }
 
 function setPlayerInvincibleAfterDamage(duration) {
@@ -1403,6 +1423,325 @@ function loadSpriteImages(paths) {
       return [key, sprite];
     }),
   );
+}
+
+const AUDIO_SETTINGS = {
+  master: 0.42,
+  music: 0.28,
+  sfx: 0.5,
+  beatMs: 176,
+};
+const audioState = {
+  context: null,
+  masterGain: null,
+  musicGain: null,
+  sfxGain: null,
+  bgmTimerId: null,
+  bgmStep: 0,
+  bgmBeatMs: 0,
+};
+const STAGE_BGM_PROFILES = {
+  1: {
+    bass: [55, 55, 65.41, 55, 73.42, 65.41, 55, 49, 55, 55, 82.41, 73.42, 65.41, 61.74, 55, 49],
+    lead: [220, 0, 246.94, 0, 261.63, 0, 196, 0, 220, 246.94, 0, 293.66, 261.63, 0, 196, 0],
+    beatMs: 176,
+    bassGain: 0.13,
+    leadGain: 0.04,
+    filter: 520,
+  },
+  2: {
+    bass: [49, 49, 58.27, 49, 65.41, 58.27, 49, 43.65, 49, 55, 65.41, 73.42, 65.41, 58.27, 55, 49],
+    lead: [196, 0, 220, 0, 246.94, 0, 174.61, 0, 196, 220, 0, 261.63, 246.94, 0, 174.61, 0],
+    beatMs: 168,
+    bassGain: 0.14,
+    leadGain: 0.038,
+    filter: 470,
+  },
+  3: {
+    bass: [61.74, 61.74, 73.42, 61.74, 82.41, 73.42, 61.74, 55, 61.74, 65.41, 82.41, 92.5, 82.41, 73.42, 65.41, 61.74],
+    lead: [246.94, 0, 293.66, 0, 329.63, 0, 220, 0, 246.94, 293.66, 0, 349.23, 329.63, 0, 220, 0],
+    beatMs: 172,
+    bassGain: 0.125,
+    leadGain: 0.045,
+    filter: 560,
+  },
+  4: {
+    bass: [46.25, 46.25, 55, 46.25, 61.74, 55, 46.25, 41.2, 46.25, 51.91, 61.74, 69.3, 61.74, 55, 51.91, 46.25],
+    lead: [185, 0, 207.65, 0, 233.08, 0, 164.81, 0, 185, 207.65, 0, 277.18, 233.08, 0, 164.81, 0],
+    beatMs: 164,
+    bassGain: 0.15,
+    leadGain: 0.035,
+    filter: 430,
+  },
+  5: {
+    bass: [65.41, 65.41, 77.78, 65.41, 87.31, 77.78, 65.41, 58.27, 65.41, 73.42, 87.31, 98, 87.31, 77.78, 73.42, 65.41],
+    lead: [261.63, 0, 329.63, 0, 349.23, 0, 246.94, 0, 261.63, 329.63, 0, 392, 349.23, 0, 246.94, 0],
+    beatMs: 160,
+    bassGain: 0.14,
+    leadGain: 0.048,
+    filter: 610,
+  },
+  6: {
+    bass: [41.2, 41.2, 49, 41.2, 55, 49, 41.2, 36.71, 41.2, 46.25, 55, 61.74, 55, 49, 46.25, 41.2],
+    lead: [164.81, 0, 196, 0, 220, 0, 146.83, 0, 164.81, 196, 0, 246.94, 220, 0, 146.83, 0],
+    beatMs: 154,
+    bassGain: 0.17,
+    leadGain: 0.04,
+    filter: 390,
+  },
+};
+
+function ensureAudio() {
+  if (audioState.context) return audioState.context;
+
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return null;
+
+  const context = new AudioContextClass();
+  const masterGain = context.createGain();
+  const musicGain = context.createGain();
+  const sfxGain = context.createGain();
+  const compressor = context.createDynamicsCompressor();
+
+  masterGain.gain.value = AUDIO_SETTINGS.master;
+  musicGain.gain.value = AUDIO_SETTINGS.music;
+  sfxGain.gain.value = AUDIO_SETTINGS.sfx;
+  compressor.threshold.value = -20;
+  compressor.knee.value = 18;
+  compressor.ratio.value = 7;
+  compressor.attack.value = 0.004;
+  compressor.release.value = 0.18;
+
+  musicGain.connect(masterGain);
+  sfxGain.connect(masterGain);
+  masterGain.connect(compressor);
+  compressor.connect(context.destination);
+
+  audioState.context = context;
+  audioState.masterGain = masterGain;
+  audioState.musicGain = musicGain;
+  audioState.sfxGain = sfxGain;
+  return context;
+}
+
+function unlockAudio() {
+  const context = ensureAudio();
+  if (!context) return;
+  if (context.state === "suspended") context.resume();
+  if (state.gameStarted) startBgm();
+}
+
+function playTone(frequency, duration, options = {}) {
+  const context = audioState.context;
+  if (!context) return;
+
+  const now = context.currentTime + (options.delay ?? 0);
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  const filter = context.createBiquadFilter();
+  const output = options.music ? audioState.musicGain : audioState.sfxGain;
+  const attack = options.attack ?? 0.006;
+  const release = options.release ?? 0.04;
+  const peak = options.gain ?? 0.18;
+
+  oscillator.type = options.type ?? "square";
+  oscillator.frequency.setValueAtTime(frequency, now);
+  if (typeof options.endFrequency === "number") {
+    oscillator.frequency.exponentialRampToValueAtTime(Math.max(24, options.endFrequency), now + duration);
+  }
+  if (typeof options.detune === "number") oscillator.detune.setValueAtTime(options.detune, now);
+
+  filter.type = options.filterType ?? "lowpass";
+  filter.frequency.setValueAtTime(options.filterFrequency ?? 1800, now);
+  filter.Q.value = options.q ?? 0.8;
+
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), now + attack);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration + release);
+
+  oscillator.connect(filter);
+  filter.connect(gain);
+  gain.connect(output);
+  oscillator.start(now);
+  oscillator.stop(now + duration + release + 0.03);
+}
+
+function playNoise(duration, options = {}) {
+  const context = audioState.context;
+  if (!context) return;
+
+  const now = context.currentTime + (options.delay ?? 0);
+  const buffer = context.createBuffer(1, Math.max(1, Math.floor(context.sampleRate * duration)), context.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i += 1) {
+    const fade = 1 - i / data.length;
+    data[i] = (Math.random() * 2 - 1) * Math.pow(fade, options.fadePower ?? 1.5);
+  }
+
+  const source = context.createBufferSource();
+  const gain = context.createGain();
+  const filter = context.createBiquadFilter();
+  source.buffer = buffer;
+  filter.type = options.filterType ?? "bandpass";
+  filter.frequency.value = options.filterFrequency ?? 1200;
+  filter.Q.value = options.q ?? 1.3;
+  gain.gain.setValueAtTime(options.gain ?? 0.16, now);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioState.sfxGain);
+  source.start(now);
+}
+
+function startBgm() {
+  if (!audioState.context || audioState.bgmTimerId) return;
+
+  const tick = () => {
+    audioState.bgmTimerId = null;
+    if (!state.gameStarted) return;
+    if (state.continueActive) {
+      scheduleNextBgmTick(tick, getCurrentBgmProfile(), false);
+      return;
+    }
+
+    const profile = getCurrentBgmProfile();
+    const step = audioState.bgmStep % 16;
+    const isBoss = state.enemies.some((enemy) => isBossEnemy(enemy) && enemy.hp > 0);
+    const bass = profile.bass[step] * (isBoss ? 0.5 : 1);
+
+    playTone(bass, 0.16, {
+      music: true,
+      type: "sawtooth",
+      gain: isBoss ? profile.bassGain * 1.45 : profile.bassGain,
+      filterFrequency: isBoss ? profile.filter + 180 : profile.filter,
+      release: 0.08,
+    });
+
+    if (step % 4 === 2 || (isBoss && step % 2 === 1)) {
+      playNoise(0.045, { gain: isBoss ? 0.07 : 0.045, filterFrequency: isBoss ? 3800 : 3200, q: 4, fadePower: 2.4 });
+    }
+
+    const lead = profile.lead[step];
+    if (lead && (step % 2 === 0 || isBoss)) {
+      playTone(lead * (isBoss ? 1.5 : 1), isBoss ? 0.07 : 0.08, {
+        music: true,
+        type: "square",
+        gain: isBoss ? profile.leadGain * 1.55 : profile.leadGain,
+        filterFrequency: isBoss ? 2100 : 1500,
+        release: 0.05,
+      });
+    }
+
+    if (isBoss && step % 4 === 0) {
+      playTone(bass * 2, 0.06, {
+        music: true,
+        type: "square",
+        gain: 0.065,
+        filterFrequency: 1200,
+        release: 0.03,
+      });
+    }
+
+    audioState.bgmStep += 1;
+    scheduleNextBgmTick(tick, profile, isBoss);
+  };
+
+  tick();
+}
+
+function stopBgm() {
+  if (!audioState.bgmTimerId) return;
+  window.clearTimeout(audioState.bgmTimerId);
+  audioState.bgmTimerId = null;
+  audioState.bgmBeatMs = 0;
+  audioState.bgmStep = 0;
+}
+
+function scheduleNextBgmTick(tick, profile, isBoss) {
+  const beatMs = Math.round(profile.beatMs * (isBoss ? 0.76 : 1));
+  audioState.bgmBeatMs = beatMs;
+  audioState.bgmTimerId = window.setTimeout(tick, beatMs);
+}
+
+function getCurrentBgmProfile() {
+  return STAGE_BGM_PROFILES[state.currentStage] ?? STAGE_BGM_PROFILES[1];
+}
+
+function playSfx(name) {
+  if (!audioState.context) return;
+
+  switch (name) {
+    case "ui":
+      playTone(660, 0.035, { type: "triangle", gain: 0.08, filterFrequency: 1800 });
+      break;
+    case "start":
+      playTone(110, 0.12, { type: "sawtooth", gain: 0.18, endFrequency: 82, filterFrequency: 780 });
+      playTone(440, 0.08, { type: "square", gain: 0.09, delay: 0.08, filterFrequency: 1600 });
+      break;
+    case "area":
+      playTone(196, 0.08, { type: "square", gain: 0.08 });
+      playTone(261.63, 0.09, { type: "square", gain: 0.08, delay: 0.07 });
+      break;
+    case "attack":
+      playNoise(0.055, { gain: 0.09, filterFrequency: 1800, q: 2.5 });
+      playTone(160, 0.04, { type: "sawtooth", gain: 0.08, endFrequency: 95, filterFrequency: 900 });
+      break;
+    case "attackHeavy":
+      playNoise(0.11, { gain: 0.18, filterFrequency: 760, q: 1.7, fadePower: 1.25 });
+      playTone(82.41, 0.11, { type: "sawtooth", gain: 0.17, endFrequency: 43.65, filterFrequency: 560, release: 0.07 });
+      playTone(164.81, 0.055, { type: "square", gain: 0.08, delay: 0.025, endFrequency: 110, filterFrequency: 900 });
+      break;
+    case "hit":
+      playNoise(0.07, { gain: 0.16, filterFrequency: 860, q: 2.1 });
+      playTone(92, 0.055, { type: "square", gain: 0.12, endFrequency: 58, filterFrequency: 600 });
+      break;
+    case "guard":
+      playTone(190, 0.06, { type: "square", gain: 0.11, endFrequency: 145, filterFrequency: 900 });
+      playTone(380, 0.04, { type: "square", gain: 0.07, delay: 0.035, filterFrequency: 1200 });
+      break;
+    case "backHit":
+      playTone(330, 0.055, { type: "square", gain: 0.09, filterFrequency: 1800 });
+      playTone(494, 0.07, { type: "square", gain: 0.08, delay: 0.045, filterFrequency: 2000 });
+      break;
+    case "jump":
+      playTone(220, 0.11, { type: "triangle", gain: 0.09, endFrequency: 410, filterFrequency: 1400 });
+      break;
+    case "knife":
+      playNoise(0.08, { gain: 0.11, filterFrequency: 4200, q: 5, fadePower: 2.6 });
+      playTone(720, 0.045, { type: "triangle", gain: 0.07, filterFrequency: 2800 });
+      break;
+    case "special":
+      playTone(110, 0.16, { type: "sawtooth", gain: 0.16, endFrequency: 220, filterFrequency: 900 });
+      playNoise(0.12, { gain: 0.1, filterFrequency: 1600, q: 1.6 });
+      break;
+    case "super":
+      playTone(73.42, 0.24, { type: "sawtooth", gain: 0.2, endFrequency: 146.83, filterFrequency: 720 });
+      playTone(440, 0.16, { type: "square", gain: 0.12, delay: 0.07, filterFrequency: 1800 });
+      playNoise(0.22, { gain: 0.12, delay: 0.08, filterFrequency: 2200 });
+      break;
+    case "break":
+      playNoise(0.14, { gain: 0.18, filterFrequency: 980, q: 1.8 });
+      playTone(74, 0.08, { type: "sawtooth", gain: 0.12, endFrequency: 46, filterFrequency: 520 });
+      break;
+    case "item":
+      playTone(523.25, 0.06, { type: "triangle", gain: 0.08, filterFrequency: 1800 });
+      playTone(659.25, 0.08, { type: "triangle", gain: 0.08, delay: 0.055, filterFrequency: 2000 });
+      break;
+    case "hurt":
+      playTone(165, 0.08, { type: "sawtooth", gain: 0.12, endFrequency: 92, filterFrequency: 800 });
+      break;
+    case "boss":
+      playTone(55, 0.3, { type: "sawtooth", gain: 0.22, endFrequency: 41.2, filterFrequency: 500 });
+      playNoise(0.28, { gain: 0.12, filterFrequency: 520, q: 1.1 });
+      break;
+    case "clear":
+      [261.63, 329.63, 392, 523.25].forEach((note, index) => {
+        playTone(note, 0.12, { type: "square", gain: 0.09, delay: index * 0.09, filterFrequency: 2100 });
+      });
+      break;
+    default:
+      break;
+  }
 }
 
 function resizeCanvas() {
@@ -1438,6 +1777,7 @@ function normalize(x, y) {
 }
 
 function requestAttack() {
+  unlockAudio();
   const player = state.player;
   if (player.hp <= 0 || player.attackCooldown > 0) return;
 
@@ -1475,6 +1815,7 @@ function requestAttack() {
     hasHit: new Set(),
   };
   state.attacks.push(attack);
+  playSfx(attack.comboStep === 3 ? "attackHeavy" : "attack");
 }
 
 function throwPlayerKnife() {
@@ -1499,9 +1840,11 @@ function throwPlayerKnife() {
     hasHit: new Set(),
   });
   addFloatingText(player.x, player.y - jumpHeight - 70, "KNIFE!", "#79d7ff");
+  playSfx("knife");
 }
 
 function requestSpecialSkill() {
+  unlockAudio();
   const player = state.player;
   if (!canUsePlayerAction() || player.attackCooldown > 0 || player.specialGauge < SPECIAL_GAUGE.skillCost) return false;
 
@@ -1522,10 +1865,12 @@ function requestSpecialSkill() {
     hasHit: new Set(),
   });
   addFloatingText(player.x, player.y - 92, "SPECIAL!", "#79d7ff");
+  playSfx("special");
   return true;
 }
 
 function requestSuperSpecial() {
+  unlockAudio();
   const player = state.player;
   if (!canUsePlayerAction() || player.specialGauge < SPECIAL_GAUGE.max) return false;
 
@@ -1543,10 +1888,12 @@ function requestSuperSpecial() {
     addFloatingText(enemy.x, enemy.y - 92, `-${SPECIAL_GAUGE.superDamage}`, "#fff1be");
   });
   addFloatingText(player.x, player.y - 108, "SUPER!", "#ffc857");
+  playSfx("super");
   return true;
 }
 
 function requestJump(direction) {
+  unlockAudio();
   const player = state.player;
   if (player.hp <= 0 || player.isJumping) return;
 
@@ -1557,6 +1904,7 @@ function requestJump(direction) {
   player.facing = direction;
   player.comboTimer = 0;
   player.comboStep = 0;
+  playSfx("jump");
 }
 
 function requestJumpKick() {
@@ -1580,6 +1928,7 @@ function requestJumpKick() {
     hasHit: new Set(),
   });
   addFloatingText(player.x, player.y - getPlayerJumpHeight(player) - 78, "KICK", "#79d7ff");
+  playSfx("attack");
 }
 
 function updateInputVector() {
@@ -1690,6 +2039,7 @@ function updateContinue(dt) {
 }
 
 function acceptContinue() {
+  unlockAudio();
   if (!state.continueActive) return;
 
   state.continueActive = false;
@@ -1708,15 +2058,19 @@ function acceptContinue() {
   spawnWave(false);
   revivePlayer();
   updateContinueOverlay();
+  startBgm();
+  playSfx("start");
 }
 
 function giveUpContinue() {
+  unlockAudio();
   if (!state.continueActive) return;
 
   state.continueActive = false;
   state.continueTimer = 0;
   updateContinueOverlay();
   resetRun(false);
+  playSfx("start");
 }
 
 function updateContinueOverlay() {
@@ -2032,6 +2386,7 @@ function startMidBossGuard(enemy) {
   enemy.guardTimer = MID_BOSS_ENEMY.guardDuration;
   enemy.guardCooldown = enemy.bossRank === "major" ? MAJOR_BOSS_ENEMY.guardCooldown : MID_BOSS_ENEMY.guardCooldown;
   enemy.hasDamagedThisSwing = false;
+  playSfx("guard");
 }
 
 function startMidBossAttack(enemy, attackType, player) {
@@ -2044,6 +2399,7 @@ function startMidBossAttack(enemy, attackType, player) {
   enemy.attackStartY = enemy.y;
   enemy.attackLanded = false;
   enemy.visualJumpHeight = 0;
+  playSfx(attackType === "shock" || attackType === "summon" ? "special" : attackType === "knife" ? "knife" : "attack");
 
   if (attackType === "charge") {
     enemy.attackWindup = getAttackWindup(MID_BOSS_ENEMY.chargeWindup, enemy);
@@ -2250,6 +2606,7 @@ function applyMidBossRadialAttack(enemy, player, radius, damage) {
   addSpecialGauge(10);
   setPlayerInvincibleAfterDamage(0.65);
   addFloatingText(player.x, player.y - 62, `-${damage}`, "#ff6b5a");
+  playSfx("hurt");
   if (player.hp <= 0) showPlayerDefeatMessage();
 }
 
@@ -2279,6 +2636,7 @@ function fireEnemyBullet(enemy, player) {
     spin: 0,
     active: true,
   });
+  playSfx("knife");
 }
 
 function updateKnifeEnemy(enemy, player, dt) {
@@ -2368,6 +2726,7 @@ function throwEnemyKnife(enemy, player) {
     spin: 0,
     active: true,
   });
+  playSfx("knife");
 }
 
 function updateBikeEnemy(enemy, player, dt) {
@@ -2389,6 +2748,7 @@ function updateBikeEnemy(enemy, player, dt) {
     addSpecialGauge(10);
     setPlayerInvincibleAfterDamage(0.65);
     addFloatingText(player.x, player.y - 62, `-${enemy.damage}`, "#ff6b5a");
+    playSfx("hurt");
     if (player.hp <= 0) showPlayerDefeatMessage();
   }
 }
@@ -2409,6 +2769,7 @@ function updateProjectiles(dt) {
         addSpecialGauge(10);
         setPlayerInvincibleAfterDamage(0.55);
         addFloatingText(player.x, player.y - 62, `-${projectile.damage}`, "#ff6b5a");
+        playSfx("hurt");
         if (player.hp <= 0) showPlayerDefeatMessage();
       }
     }
@@ -2515,6 +2876,7 @@ function updateItems(dt) {
       item.active = false;
       player.hasKnife = true;
       addFloatingText(player.x, player.y - 78, "KNIFE GET", "#79d7ff");
+      playSfx("item");
       return;
     }
 
@@ -2524,6 +2886,7 @@ function updateItems(dt) {
       item.active = false;
       state.lives += 1;
       addFloatingText(player.x, player.y - 78, "LIFE +1", "#ff7cab");
+      playSfx("item");
       return;
     }
 
@@ -2533,6 +2896,7 @@ function updateItems(dt) {
 
     const healed = player.hp - beforeHp;
     addFloatingText(player.x, player.y - 78, healed > 0 ? `+${healed} HP` : "FULL", "#77df74");
+    playSfx("item");
   });
 
   state.items = state.items.filter((item) => item.active);
@@ -2653,6 +3017,7 @@ function applyEnemyAttack(enemy, player) {
   addSpecialGauge(10);
   setPlayerInvincibleAfterDamage(0.55);
   addFloatingText(player.x, player.y - 62, `-${enemy.damage}`, "#ff6b5a");
+  playSfx("hurt");
   if (player.hp <= 0) showPlayerDefeatMessage();
 }
 
@@ -2727,6 +3092,7 @@ function updateAttacks(dt) {
       projectile.active = false;
       dropKnifeFromProjectile(projectile);
       addFloatingText(projectile.x, projectile.y - 18, "CLANG!", "#79d7ff");
+      playSfx("guard");
     });
 
     if (!isRadialAttack) {
@@ -2745,6 +3111,7 @@ function updateAttacks(dt) {
         breakable.wobbleTimer = 0.18;
         state.score += 10;
         addFloatingText(breakable.x, breakable.y - breakable.height / 2 - 20, `-${attack.damage}`, "#fff1be");
+        playSfx("hit");
       });
     }
 
@@ -2772,6 +3139,7 @@ function updateAttacks(dt) {
       });
       addSpecialGauge(isRadialAttack ? 0 : isFinisher ? 7 : 4);
       addFloatingText(enemy.x, enemy.y - 70, `-${bossDefense.damage}`, "#fff1be");
+      playSfx(bossDefense.type === "guard" ? "guard" : bossDefense.type === "back" ? "backHit" : "hit");
       if (bossDefense.type === "back") addFloatingText(enemy.x, enemy.y - 106, "BACK HIT!", "#ffc857");
       if (isFinisher && !isRadialAttack) {
         addFloatingText(enemy.x, enemy.y - 116, attack.comboStep === "K" ? "JUMP KICK!" : "KNOCK!", "#79d7ff");
@@ -2806,6 +3174,7 @@ function updateAttacks(dt) {
       breakable.brokenTimer = BREAKABLE_BROKEN_DISPLAY_TIME;
       addFloatingText(breakable.x, breakable.y - breakable.height / 2 - 38, "BREAK!", "#ffc857");
       dropItemFromBreakable(breakable);
+      playSfx("break");
     });
   }
   state.breakables = state.breakables.filter((breakable) => breakable.hp > 0 || breakable.brokenTimer > 0);
@@ -2855,6 +3224,7 @@ function enterNextArea() {
   state.items = [];
   state.enemies = [];
   spawnWave(false);
+  playSfx("area");
 }
 
 function completeCurrentStage() {
@@ -2876,13 +3246,16 @@ function completeCurrentStage() {
   state.breakables = [];
   clearAllInput();
   updateContinueOverlay();
+  stopBgm();
 
   titleStep = "stage";
   if (stageDef.stage === FINAL_STAGE_NUMBER) {
     titleNoticeText = "GAME CLEAR!";
+    playSfx("clear");
   } else {
     completedStageNumbers.add(stageDef.stage);
     titleNoticeText = `${stageDef.label} CLEAR!`;
+    playSfx("clear");
   }
   updateTitleOverlay();
 }
@@ -3493,10 +3866,17 @@ function getEnemyWalkTransform(enemy, spriteKey) {
 }
 
 function getEnemyWindmillTransform(enemy, spriteKey) {
-  if (getEnemySpriteDefKey(enemy) !== "mid_boss_shock") return null;
   if (spriteKey !== "shock") return null;
 
-  const settings = MID_BOSS_SHOCK_WINDMILL;
+  const spriteDefKey = getEnemySpriteDefKey(enemy);
+  const settings =
+    spriteDefKey === "mid_boss_shock"
+      ? MID_BOSS_SHOCK_WINDMILL
+      : spriteDefKey === "major_boss_brawler"
+        ? MAJOR_BOSS_SHOCK_SPIN
+        : null;
+  if (!settings) return null;
+
   const frame = Math.floor(performance.now() / settings.frameMs) % 4;
   const frames = [
     { rotate: -settings.spin, slide: -settings.slide, scaleX: 1 + settings.squash, scaleY: 1 - settings.squash * 0.55, flip: 1 },
@@ -4473,6 +4853,7 @@ function preventBrowserZoomGestures() {
 }
 
 window.addEventListener("keydown", (event) => {
+  unlockAudio();
   if (!state.gameStarted) {
     if (titleStep === "stage" && /^Digit[1-6]$/.test(event.code)) {
       event.preventDefault();
@@ -4594,6 +4975,7 @@ function updateActionHold(dt) {
 }
 
 canvas.addEventListener("pointerdown", (event) => {
+  unlockAudio();
   if (!state.gameStarted) return;
   if (state.continueActive) return;
 
@@ -4679,7 +5061,12 @@ window.addEventListener("pointercancel", (event) => {
 window.addEventListener("blur", clearAllInput);
 
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) clearAllInput();
+  if (document.hidden) {
+    clearAllInput();
+    stopBgm();
+  } else if (state.gameStarted) {
+    startBgm();
+  }
 });
 
 document.addEventListener(
